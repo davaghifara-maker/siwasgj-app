@@ -1,0 +1,2603 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SIWASGA - Sunan Gunungjati</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'sg-green': '#0a5c36',
+                        'sg-light': '#e6f2ec',
+                        'sg-dark': '#064025',
+                        'sg-accent': '#f59e0b',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- SheetJS (XLSX) for Microsoft Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f1f5f9;
+            -webkit-tap-highlight-color: transparent;
+        }
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .app-container {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 min-h-screen text-slate-800">
+
+    <div id="root"></div>
+
+    <!-- Firebase Realtime Database SDK & Init Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue, update } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBWmjv52jPYZ46Pl0ge4p4MhKy3vlXBxGU",
+            authDomain: "siwasga.firebaseapp.com",
+            databaseURL: "https://siwasga-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "siwasga",
+            storageBucket: "siwasga.firebasestorage.app",
+            messagingSenderId: "132925478112",
+            appId: "1:132925478112:web:af0329cb8dc69e03daec85",
+            measurementId: "G-812RM7EL7M"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        window.FB = { 
+            db, ref, set, get, onValue, update 
+        };
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const handleDownloadPhoto = async (photoUrl, photoName = "Dokumentasi_SIWASGA.jpg") => {
+            try {
+                const response = await fetch(photoUrl);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = photoName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                window.open(photoUrl, '_blank');
+            }
+        };
+
+        const exportToExcel = (studentsList, pengumuman, adminUsers, showToast) => {
+            try {
+                const wb = XLSX.utils.book_new();
+
+                const santriData = studentsList.map(s => ({
+                    "NIS": s.nis,
+                    "Nama Lengkap": s.nama,
+                    "Tempat Lahir": s.tempatLahir,
+                    "Tanggal Lahir": s.tglLahir,
+                    "Kelas": s.kelas,
+                    "Kamar": s.kamar,
+                    "Nama Wali": s.namaWali,
+                    "No HP Wali": s.noHpWali,
+                    "Kata Sandi Wali": s.sandi || '123456'
+                }));
+                const wsSantri = XLSX.utils.json_to_sheet(santriData);
+                XLSX.utils.book_append_sheet(wb, wsSantri, "Data Santri");
+
+                const pengumumanData = pengumuman.map(p => ({
+                    "Judul Pengumuman": p.title,
+                    "Kategori": p.type,
+                    "Tanggal": p.date,
+                    "Isi Keterangan": p.desc
+                }));
+                const wsPengumuman = XLSX.utils.json_to_sheet(pengumumanData);
+                XLSX.utils.book_append_sheet(wb, wsPengumuman, "Pengumuman");
+
+                const adminData = adminUsers.map(a => ({
+                    "Nama Pengurus": a.nama,
+                    "Username": a.username,
+                    "Hak Akses (Role)": a.role,
+                    "Kata Sandi": a.sandi
+                }));
+                const wsAdmin = XLSX.utils.json_to_sheet(adminData);
+                XLSX.utils.book_append_sheet(wb, wsAdmin, "Data Pengurus");
+
+                XLSX.writeFile(wb, `SIWASGA_Database_${new Date().toISOString().slice(0,10)}.xlsx`);
+                showToast("File Microsoft Excel (.xlsx) berhasil diunduh!");
+            } catch (err) {
+                showToast("Gagal mengunduh file Excel.");
+            }
+        };
+
+        const LogoSGJ = ({ className = "w-20 h-20", customLogo }) => {
+            const defaultLogo = "https://placehold.co/300x300/0a5c36/ffffff?text=Pon.Pes+Sunan+Gunungjati";
+            const logoToDisplay = customLogo || defaultLogo;
+
+            return (
+                <div className={`relative flex items-center justify-center overflow-hidden rounded-full bg-white shadow-md ${className}`}>
+                    <img 
+                        src={logoToDisplay} 
+                        alt="Pon.Pes Sunan Gunungjati Rogojampi" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = defaultLogo;
+                        }}
+                    />
+                </div>
+            );
+        };
+
+        const initialStudentsList = [
+            {
+                id: 'santri_1',
+                nis: '123456',
+                sandi: '123456',
+                nama: "Muhammad Ali",
+                tempatLahir: "Banyuwangi",
+                tglLahir: "12 Mei 2010",
+                kelas: "VIII B",
+                kamar: "3",
+                namaWali: "Ahmad",
+                noHpWali: "0812-3456-7890",
+                foto: "https://placehold.co/150x150/0a5c36/ffffff?text=MA",
+                nilai: [
+                    { id: 'n1', mapel: "Al-Qur'an", nilai: 90 },
+                    { id: 'n2', mapel: "Fiqih (Fathul Qarib)", nilai: 88 },
+                    { id: 'n3', mapel: "Nahwu (Imriti)", nilai: 91 },
+                    { id: 'n4', mapel: "Akhlak (Ta'lim Muta'allim)", nilai: 95 },
+                    { id: 'n5', mapel: "Bahasa Arab", nilai: 89 }
+                ],
+                absensi: [
+                    { id: 'a1', tanggal: "10 Juni 2026", status: "Hadir" },
+                    { id: 'a2', tanggal: "9 Juni 2026", status: "Izin" },
+                    { id: 'a3', tanggal: "8 Juni 2026", status: "Hadir" }
+                ],
+                pembayaran: [
+                    { id: 'b1', bulan: "Juli 2026", status: "Lunas", nominal: "Rp300.000" },
+                    { id: 'b2', bulan: "Agustus 2026", status: "Lunas", nominal: "Rp300.000" },
+                    { id: 'b3', bulan: "September 2026", status: "Belum", nominal: "Rp300.000" },
+                    { id: 'b4', bulan: "Oktober 2026", status: "Belum", nominal: "Rp300.000" }
+                ],
+                perizinan: [
+                    { id: 'i1', tanggal: '2026-07-05', jenis: 'Sakit', alasan: 'Demam dan pusing', status: 'Disetujui', tglPengajuan: '4 Jul 2026' }
+                ]
+            },
+            {
+                id: 'santri_2',
+                nis: '123457',
+                sandi: '123457',
+                nama: "Siti Fatimah",
+                tempatLahir: "Jember",
+                tglLahir: "20 Agustus 2009",
+                kelas: "IX A",
+                kamar: "5",
+                namaWali: "Hasan Basri",
+                noHpWali: "0813-9876-5432",
+                foto: "https://placehold.co/150x150/f59e0b/ffffff?text=SF",
+                nilai: [{ id: 'n1', mapel: "Al-Qur'an", nilai: 92 }],
+                absensi: [{ id: 'a1', tanggal: "10 Juni 2026", status: "Hadir" }],
+                pembayaran: [{ id: 'b1', bulan: "Juli 2026", status: "Lunas", nominal: "Rp300.000" }],
+                perizinan: []
+            }
+        ];
+
+        const initialAdminUsers = [
+            { id: 'u_admin', username: 'admin', nama: 'Super Admin (Akses Penuh)', role: 'superadmin', sandi: 'admin123' },
+            { id: 'u_bendahara', username: 'bendahara', nama: 'Bagian Keuangan / Bendahara', role: 'bendahara', sandi: 'bendahara123' },
+            { id: 'u_sekretaris', username: 'sekretaris', nama: 'Sekretaris Pondok', role: 'sekretaris', sandi: 'sekretaris123' },
+            { id: 'u_media', username: 'media', nama: 'Tim Media & Publikasi', role: 'media', sandi: 'media123' }
+        ];
+
+        const initialPengumuman = [
+            { id: 'p1', title: "Libur Pondok", desc: "Pondok akan libur pada tanggal 10 - 17 Juli 2026.", date: "2 Jul 2026", type: "Umum", icon: "fa-calendar-alt", color: "text-orange-500", bg: "bg-orange-100" },
+            { id: 'p2', title: "Jadwal Haflah Akhirussanah", desc: "Akan dilaksanakan pada tanggal 25 Juli 2026 di Aula Pondok.", date: "1 Jul 2026", type: "Kegiatan", icon: "fa-graduation-cap", color: "text-yellow-500", bg: "bg-yellow-100" }
+        ];
+
+        const initialDokumentasi = [
+            { 
+                id: 'd1', 
+                judul: "Kegiatan Pengajian Kitab Kuning", 
+                tanggal: "01 Jul 2026", 
+                fotoList: [
+                    "https://placehold.co/600x400/0a5c36/ffffff?text=Pengajian+Kitab+1",
+                    "https://placehold.co/600x400/064025/ffffff?text=Pengajian+Kitab+2"
+                ]
+            }
+        ];
+
+        const initialContactInfo = {
+            telepon: "(0333) 1234567",
+            whatsapp: "0812-3456-7890",
+            alamat: "Patoman - Watukebo, Rogojampi Banyuwangi",
+            mapsUrl: "https://maps.google.com/?q=Pondok+Pesantren+Sunan+Gunungjati+Rogojampi"
+        };
+
+        const SecretInfoModal = ({ onClose }) => (
+            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-3xl p-6 text-slate-100 shadow-2xl relative text-center">
+                    <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white p-1">
+                        <i className="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                    <div className="w-12 h-12 bg-emerald-500/20 text-amber-400 rounded-2xl flex items-center justify-center text-xl mx-auto mb-3 border border-emerald-500/30">
+                        <i className="fa-solid fa-code"></i>
+                    </div>
+                    <h3 className="font-bold text-base text-white mb-1">Informasi Pembuat Aplikasi</h3>
+                    <p className="text-xs text-slate-300 leading-relaxed mb-4">
+                        Aplikasi SIWASGA ini dibuat dan dikembangkan oleh <strong className="text-emerald-400">Ardava Ghifara Putra</strong>, salah satu santri Pondok Pesantren Sunan Gunungjati Rogojampi Banyuwangi.
+                    </p>
+                    <button onClick={onClose} className="w-full bg-sg-green hover:bg-sg-dark text-white text-xs font-semibold py-2.5 rounded-xl transition">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        );
+
+        const ApkDownloadModal = ({ onClose, showToast, customLogo, studentsList, pengumuman, adminUsers, driveLink = "https://drive.google.com/drive/folders/1Byj_puBnKY22du4MWNL877fAfYz66z4c" }) => {
+            const handleDownloadApkDrive = () => {
+                window.open(driveLink, '_blank');
+                showToast("Membuka Google Drive resmi untuk mengunduh APK!");
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl p-6 text-slate-100 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white p-2">
+                            <i className="fa-solid fa-xmark text-xl"></i>
+                        </button>
+
+                        <div className="text-center mb-5">
+                            <div className="flex justify-center mb-3">
+                                <LogoSGJ className="w-24 h-24 drop-shadow-lg" customLogo={customLogo} />
+                            </div>
+                            <h3 className="text-xl font-black text-white">Aplikasi SIWASGA & Backup Excel</h3>
+                            <p className="text-xs text-sg-accent font-semibold mt-0.5">
+                                Pon.Pes Sunan Gunungjati • Rogojampi, Banyuwangi
+                            </p>
+                        </div>
+
+                        <div className="bg-emerald-950/60 border border-emerald-500/30 p-3.5 rounded-2xl mb-4 text-center">
+                            <p className="text-[11px] text-slate-300">Aplikasi & Sistem Database dikembangkan oleh:</p>
+                            <h4 className="text-xs font-bold text-emerald-400 mt-0.5">Ardava Ghifara Putra (Santri Pon.Pes Sunan Gunungjati)</h4>
+                        </div>
+
+                        <div className="space-y-3 mb-6">
+                            <button 
+                                onClick={handleDownloadApkDrive}
+                                className="w-full bg-gradient-to-r from-sg-green to-emerald-700 hover:opacity-95 text-white font-bold py-3.5 rounded-2xl transition flex items-center justify-center gap-3 shadow-lg text-sm border border-emerald-400/30">
+                                <i className="fa-brands fa-google-drive text-xl text-yellow-300"></i>
+                                <span>Unduh APK Resmi via Google Drive</span>
+                            </button>
+
+                            <button 
+                                onClick={() => exportToExcel(studentsList, pengumuman, adminUsers, showToast)}
+                                className="w-full bg-emerald-800 hover:bg-emerald-700 text-white font-semibold py-3 rounded-2xl border border-emerald-600 transition flex items-center justify-center gap-2 text-xs shadow-md">
+                                <i className="fa-solid fa-file-excel text-green-300 text-base"></i>
+                                <span>Unduh Backup Data ke Microsoft Excel (.xlsx)</span>
+                            </button>
+                        </div>
+
+                        <div className="text-center">
+                            <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-6 rounded-xl transition">
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const LoginScreen = ({ onLogin, onOpenApkModal, onOpenSecret, customLogo, adminUsers, studentsList }) => {
+            const [roleTab, setRoleTab] = useState('wali');
+            const [nisInput, setNisInput] = useState('');
+            const [sandiInput, setSandiInput] = useState('');
+            const [showPass, setShowPass] = useState(false);
+            const [errorMsg, setErrorMsg] = useState('');
+
+            const handleLoginSubmit = async (e) => {
+                e.preventDefault();
+                setErrorMsg('');
+
+                if (!nisInput || !sandiInput) {
+                    setErrorMsg('Silakan masukkan Username/NIS dan Kata Sandi!');
+                    return;
+                }
+
+                if (roleTab === 'operator') {
+                    const foundAdmin = (adminUsers || initialAdminUsers).find(a => a.username === nisInput && a.sandi === sandiInput);
+                    if (foundAdmin) {
+                        onLogin('operator', foundAdmin);
+                    } else {
+                        setErrorMsg('Username atau Sandi Pengurus salah!');
+                    }
+                } else {
+                    const found = (studentsList || initialStudentsList).find(s => s.nis === nisInput && (s.sandi === sandiInput || !s.sandi));
+                    if (found) {
+                        onLogin('wali', found);
+                    } else {
+                        setErrorMsg('NIS atau Kata Sandi Wali Santri tidak ditemukan.');
+                    }
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+                    <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-sg-green/20 rounded-full blur-3xl pointer-events-none"></div>
+
+                    <button onClick={onOpenSecret} className="absolute top-4 right-4 w-9 h-9 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full text-amber-400 font-bold flex items-center justify-center transition shadow z-20" title="Info Pengembang">
+                        !
+                    </button>
+
+                    <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10">
+                        <div className="text-center mb-6">
+                            <div className="flex justify-center mb-2">
+                                <LogoSGJ className="w-24 h-24 drop-shadow-2xl hover:scale-105 transition duration-300" customLogo={customLogo} />
+                            </div>
+                            <h1 className="text-2xl font-black text-white tracking-wide mt-1">SIWASGA</h1>
+                            <p className="text-xs text-sg-accent font-bold tracking-wider uppercase mt-0.5">Sistem Informasi Wali Santri & Pengurus</p>
+                            <p className="text-[11px] text-slate-300 font-medium mt-1">
+                                Pon.Pes Sunan Gunungjati • Patoman - Watukebo, Rogojampi Banyuwangi
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 p-1 bg-slate-800 rounded-2xl mb-6 border border-slate-700/60">
+                            <button 
+                                type="button"
+                                onClick={() => { setRoleTab('wali'); setErrorMsg(''); setNisInput(''); setSandiInput(''); }}
+                                className={`py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${roleTab === 'wali' ? 'bg-sg-green text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
+                                <i className="fa-solid fa-mobile-screen"></i>
+                                <span>Wali Santri</span>
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => { setRoleTab('operator'); setErrorMsg(''); setNisInput(''); setSandiInput(''); }}
+                                className={`py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${roleTab === 'operator' ? 'bg-sg-green text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
+                                <i className="fa-solid fa-laptop"></i>
+                                <span>Pengurus / Admin</span>
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleLoginSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                                    {roleTab === 'wali' ? 'Nomor Induk Santri (NIS)' : 'Username Pengurus'}
+                                </label>
+                                <div className="relative">
+                                    <i className="fa-solid fa-id-card absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
+                                    <input 
+                                        type="text"
+                                        value={nisInput}
+                                        onChange={(e) => setNisInput(e.target.value)}
+                                        placeholder={roleTab === 'wali' ? "Contoh: 123456" : "admin"}
+                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-sg-green transition"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                                    Kata Sandi (Password)
+                                </label>
+                                <div className="relative">
+                                    <i className="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
+                                    <input 
+                                        type={showPass ? "text" : "password"}
+                                        value={sandiInput}
+                                        onChange={(e) => setSandiInput(e.target.value)}
+                                        placeholder="Masukkan sandi..."
+                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl py-3 pl-10 pr-10 text-sm focus:outline-none focus:border-sg-green transition"
+                                        required
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowPass(!showPass)}
+                                        className="absolute right-3.5 top-3.5 text-slate-400 hover:text-white transition text-sm">
+                                        <i className={`fa-solid ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {errorMsg && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2">
+                                    <i className="fa-solid fa-triangle-exclamation text-sm flex-shrink-0"></i>
+                                    <span>{errorMsg}</span>
+                                </div>
+                            )}
+
+                            <button 
+                                type="submit"
+                                className="w-full bg-sg-green hover:bg-sg-dark text-white font-bold py-3 rounded-xl transition shadow-lg mt-2 flex items-center justify-center gap-2">
+                                <i className="fa-solid fa-right-to-bracket"></i>
+                                <span>Masuk {roleTab === 'wali' ? 'Aplikasi Wali' : 'Panel Pengurus'}</span>
+                            </button>
+                        </form>
+
+                        <div className="mt-6">
+                            <button 
+                                onClick={onOpenApkModal}
+                                className="w-full bg-slate-800/80 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 text-xs py-2.5 px-4 rounded-xl transition font-semibold flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                    <i className="fa-brands fa-android text-base"></i>
+                                    <span>Unduh APK & Backup Excel</span>
+                                </span>
+                                <i className="fa-solid fa-circle-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ProfileItem = ({ icon, label, value, noBorder }) => (
+            <div className={`p-3 flex items-center gap-3 ${!noBorder ? 'border-b border-gray-100' : ''}`}>
+                <div className="w-8 h-8 rounded-lg bg-sg-light flex items-center justify-center text-sg-green text-xs flex-shrink-0">
+                    <i className={`fa-solid ${icon}`}></i>
+                </div>
+                <div>
+                    <span className="text-[10px] text-gray-400 block">{label}</span>
+                    <span className="text-xs font-semibold text-gray-800">{value}</span>
+                </div>
+            </div>
+        );
+
+        const MenuIcon = ({ icon, label, onClick, color, bg }) => (
+            <button onClick={onClick} className="flex flex-col items-center group">
+                <div className={`w-14 h-14 ${bg} ${color} rounded-2xl flex items-center justify-center text-2xl shadow-sm group-hover:scale-105 transition`}>
+                    <i className={`fa-solid ${icon}`}></i>
+                </div>
+                <span className="text-[11px] font-medium text-gray-700 mt-2 text-center leading-tight">{label}</span>
+            </button>
+        );
+
+        const OperatorContactManager = ({ contactInfo, setContactInfo, syncToDatabase, showToast }) => {
+            const [telepon, setTelepon] = useState(contactInfo?.telepon || '');
+            const [whatsapp, setWhatsapp] = useState(contactInfo?.whatsapp || '');
+            const [alamat, setAlamat] = useState(contactInfo?.alamat || '');
+            const [mapsUrl, setMapsUrl] = useState(contactInfo?.mapsUrl || '');
+
+            useEffect(() => {
+                if (contactInfo) {
+                    setTelepon(contactInfo.telepon || '');
+                    setWhatsapp(contactInfo.whatsapp || '');
+                    setAlamat(contactInfo.alamat || '');
+                    setMapsUrl(contactInfo.mapsUrl || '');
+                }
+            }, [contactInfo]);
+
+            const handleSaveContact = (e) => {
+                e.preventDefault();
+                const updated = { telepon, whatsapp, alamat, mapsUrl };
+                setContactInfo(updated);
+                syncToDatabase({ contactInfo: updated });
+                showToast("Informasi kontak & titik sharelok berhasil diperbarui real-time!");
+            };
+
+            return (
+                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl max-w-xl">
+                    <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                        <i className="fa-solid fa-headset text-sg-green"></i> Kelola Menu Hubungi & Sharelok Google Maps
+                    </h3>
+                    <p className="text-xs text-slate-400 mb-6">Ubah nomor telepon, nomor WhatsApp, alamat pondok, serta tautan titik Google Maps (Sharelok) untuk wali santri.</p>
+
+                    <form onSubmit={handleSaveContact} className="space-y-4 text-sm">
+                        <div>
+                            <label className="text-xs text-slate-300 block mb-1 font-semibold">Nomor Telepon Kantor/Pesantren</label>
+                            <input 
+                                type="text" 
+                                value={telepon} 
+                                onChange={(e) => setTelepon(e.target.value)} 
+                                placeholder="(0333) 1234567" 
+                                className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-sg-green" 
+                                required 
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-xs text-slate-300 block mb-1 font-semibold">Nomor WhatsApp Resmi Pesantren</label>
+                            <input 
+                                type="text" 
+                                value={whatsapp} 
+                                onChange={(e) => setWhatsapp(e.target.value)} 
+                                placeholder="0812-3456-7890" 
+                                className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-sg-green" 
+                                required 
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-xs text-slate-300 block mb-1 font-semibold">Alamat Lengkap</label>
+                            <input 
+                                type="text" 
+                                value={alamat} 
+                                onChange={(e) => setAlamat(e.target.value)} 
+                                placeholder="Patoman - Watukebo, Rogojampi Banyuwangi" 
+                                className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-sg-green" 
+                                required 
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-xs text-slate-300 block mb-1 font-semibold">Tautan Google Maps / Titik Sharelok (URL Maps)</label>
+                            <input 
+                                type="url" 
+                                value={mapsUrl} 
+                                onChange={(e) => setMapsUrl(e.target.value)} 
+                                placeholder="https://maps.app.goo.gl/... atau https://maps.google.com/..." 
+                                className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-sg-green" 
+                                required 
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">Salin tautan "Bagikan / Share" dari Google Maps dan tempelkan di sini.</p>
+                        </div>
+
+                        <button type="submit" className="w-full bg-sg-green hover:bg-sg-dark text-white font-bold py-3 rounded-xl transition shadow-md text-xs">
+                            Simpan Perubahan Kontak & Sharelok
+                        </button>
+                    </form>
+                </div>
+            );
+        };
+
+        const OperatorDokumentasiManager = ({ dokumentasi, setDokumentasi, syncToDatabase, showToast }) => {
+            const [judul, setJudul] = useState('');
+            const [newFolderFotos, setNewFolderFotos] = useState([]);
+            const [addPhotoTargetId, setAddPhotoTargetId] = useState(null);
+            const [extraFotos, setExtraFotos] = useState([]);
+
+            const handleFilesToDataUrls = (files, onComplete) => {
+                const fileArray = Array.from(files);
+                if (fileArray.length === 0) return;
+                let loaded = 0;
+                const dataUrls = [];
+                fileArray.forEach((file, idx) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        dataUrls[idx] = reader.result;
+                        loaded++;
+                        if (loaded === fileArray.length) {
+                            onComplete(dataUrls.filter(Boolean));
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                });
+            };
+
+            const handleAddFolder = (e) => {
+                e.preventDefault();
+                if (!judul || newFolderFotos.length === 0) {
+                    showToast("Nama folder dan minimal 1 foto harus diisi/dipilih!");
+                    return;
+                }
+
+                const newFolder = {
+                    id: 'd_' + Date.now(),
+                    judul,
+                    tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+                    fotoList: newFolderFotos
+                };
+
+                const updated = [newFolder, ...dokumentasi];
+                setDokumentasi(updated);
+                syncToDatabase({ dokumentasi: updated });
+                showToast(`Folder Album "${judul}" (${newFolderFotos.length} foto) berhasil dibuat!`);
+                setJudul(''); 
+                setNewFolderFotos([]);
+            };
+
+            const handleDeleteFolder = (id) => {
+                const updated = dokumentasi.filter(d => d.id !== id);
+                setDokumentasi(updated);
+                syncToDatabase({ dokumentasi: updated });
+                showToast("Folder album dokumentasi berhasil dihapus.");
+            };
+
+            const handleAddPhotoToFolder = (folderId) => {
+                if (extraFotos.length === 0) return;
+                const updated = dokumentasi.map(d => {
+                    if (d.id === folderId) {
+                        const existingList = d.fotoList || (d.foto ? [d.foto] : []);
+                        return { ...d, fotoList: [...existingList, ...extraFotos] };
+                    }
+                    return d;
+                });
+                setDokumentasi(updated);
+                syncToDatabase({ dokumentasi: updated });
+                setAddPhotoTargetId(null);
+                setExtraFotos([]);
+                showToast("Foto berhasil ditambahkan ke folder album!");
+            };
+
+            const handleDeletePhotoFromFolder = (folderId, photoIdx) => {
+                const updated = dokumentasi.map(d => {
+                    if (d.id === folderId) {
+                        const existingList = d.fotoList || (d.foto ? [d.foto] : []);
+                        const newList = existingList.filter((_, idx) => idx !== photoIdx);
+                        return { ...d, fotoList: newList };
+                    }
+                    return d;
+                });
+                setDokumentasi(updated);
+                syncToDatabase({ dokumentasi: updated });
+                showToast("Foto berhasil dihapus dari folder.");
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                            <i className="fa-solid fa-folder-plus text-sg-green"></i> Buat Folder Album Kegiatan Baru
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-4">Pilih file foto dari perangkat Anda (bisa memilih banyak foto sekaligus untuk satu folder album).</p>
+
+                        <form onSubmit={handleAddFolder} className="space-y-4 text-sm">
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block font-semibold">Nama Folder / Judul Kegiatan</label>
+                                <input type="text" value={judul} onChange={(e) => setJudul(e.target.value)} placeholder="Contoh: Haflah Akhirussanah 2026" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green" required />
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block font-semibold">Pilih File Foto (Bisa Pilih Banyak Sekaligus)</label>
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    multiple
+                                    onChange={(e) => {
+                                        handleFilesToDataUrls(e.target.files, (urls) => {
+                                            setNewFolderFotos(urls);
+                                            showToast(`${urls.length} foto berhasil dimuat.`);
+                                        });
+                                    }} 
+                                    className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sg-green file:text-white hover:file:bg-sg-dark cursor-pointer" 
+                                    required 
+                                />
+                            </div>
+                            {newFolderFotos.length > 0 && (
+                                <div className="grid grid-cols-6 gap-2 bg-slate-900 p-3 rounded-xl border border-slate-700">
+                                    {newFolderFotos.map((u, i) => (
+                                        <img key={i} src={u} alt="" className="w-full h-16 object-cover rounded-lg border border-slate-600" />
+                                    ))}
+                                </div>
+                            )}
+                            <button type="submit" className="w-full bg-sg-green hover:bg-sg-dark text-white font-bold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2">
+                                <i className="fa-solid fa-folder-plus"></i> Simpan Folder Album Foto
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-4">Daftar Folder Album Kegiatan Aktif</h3>
+                        <div className="space-y-4">
+                            {dokumentasi.map(d => {
+                                const list = d.fotoList || (d.foto ? [d.foto] : []);
+                                return (
+                                    <div key={d.id} className="bg-slate-700 p-4 rounded-xl border border-slate-600 space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-emerald-500/20 text-emerald-300 rounded-xl flex items-center justify-center text-lg">
+                                                    <i className="fa-solid fa-folder-closed"></i>
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-white text-sm">{d.judul}</h4>
+                                                    <span className="text-[10px] text-slate-300">{d.tanggal} • <strong className="text-emerald-400">{list.length} Foto</strong></span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => setAddPhotoTargetId(addPhotoTargetId === d.id ? null : d.id)} className="bg-sky-600 hover:bg-sky-500 text-white text-xs px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1">
+                                                    <i className="fa-solid fa-plus"></i> Tambah Foto
+                                                </button>
+                                                <button onClick={() => handleDeleteFolder(d.id)} className="bg-red-500/20 text-red-300 p-2 rounded-lg hover:bg-red-500 hover:text-white transition">
+                                                    <i className="fa-solid fa-trash text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {addPhotoTargetId === d.id && (
+                                            <div className="bg-slate-800 p-3 rounded-xl border border-slate-500 space-y-2">
+                                                <label className="text-[11px] text-slate-300 block font-semibold">Pilih File Foto Tambahan Dari Perangkat:</label>
+                                                <div className="flex gap-2 items-center">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*"
+                                                        multiple
+                                                        onChange={(e) => {
+                                                            handleFilesToDataUrls(e.target.files, (urls) => {
+                                                                setExtraFotos(urls);
+                                                                showToast(`${urls.length} foto tambahan dipilih.`);
+                                                            });
+                                                        }}
+                                                        className="bg-slate-700 text-white text-xs p-2 rounded-lg border border-slate-600 flex-1 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-sg-green file:text-white cursor-pointer"
+                                                    />
+                                                    <button onClick={() => handleAddPhotoToFolder(d.id)} className="bg-sg-green text-white text-xs px-4 py-2.5 rounded-lg font-bold">Simpan</button>
+                                                    <button onClick={() => { setAddPhotoTargetId(null); setExtraFotos([]); }} className="bg-slate-600 text-slate-200 text-xs px-3 py-2.5 rounded-lg">Batal</button>
+                                                </div>
+                                                {extraFotos.length > 0 && (
+                                                    <p className="text-[11px] text-emerald-400 font-semibold">{extraFotos.length} foto siap ditambahkan.</p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 pt-2 border-t border-slate-600">
+                                            {list.map((url, idx) => (
+                                                <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-600 aspect-square">
+                                                    <img src={url} alt="" className="w-full h-full object-cover" />
+                                                    <button onClick={() => handleDeletePhotoFromFolder(d.id, idx)} className="absolute top-1 right-1 bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow opacity-80 hover:opacity-100">
+                                                        <i className="fa-solid fa-xmark"></i>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const OperatorAdminManager = ({ adminUsers, setAdminUsers, syncToDatabase, showToast }) => {
+            const [nama, setNama] = useState('');
+            const [username, setUsername] = useState('');
+            const [role, setRole] = useState('sekretaris');
+            const [sandi, setSandi] = useState('');
+
+            const [editingId, setEditingId] = useState(null);
+            const [editNama, setEditNama] = useState('');
+            const [editUsername, setEditUsername] = useState('');
+            const [editRole, setEditRole] = useState('');
+            const [editSandi, setEditSandi] = useState('');
+
+            const handleAddAdmin = (e) => {
+                e.preventDefault();
+                if (!nama || !username || !sandi) {
+                    showToast("Semua kolom harus diisi!");
+                    return;
+                }
+                const newAdmin = {
+                    id: 'u_' + Date.now(),
+                    nama,
+                    username,
+                    role,
+                    sandi
+                };
+                const updated = [...adminUsers, newAdmin];
+                setAdminUsers(updated);
+                syncToDatabase({ adminUsers: updated });
+                showToast("Akun pengurus baru berhasil ditambahkan!");
+                setNama(''); setUsername(''); setSandi('');
+            };
+
+            const handleUpdateAdmin = (id) => {
+                if (!editNama || !editUsername || !editSandi) {
+                    showToast("Kolom edit tidak boleh kosong!");
+                    return;
+                }
+                const updated = adminUsers.map(u => u.id === id ? {
+                    ...u,
+                    nama: editNama,
+                    username: editUsername,
+                    role: editRole,
+                    sandi: editSandi
+                } : u);
+                setAdminUsers(updated);
+                syncToDatabase({ adminUsers: updated });
+                setEditingId(null);
+                showToast("Data pengurus berhasil diperbarui!");
+            };
+
+            const handleDeleteAdmin = (id) => {
+                if (adminUsers.length <= 1) {
+                    showToast("Minimal harus ada 1 akun admin utama!");
+                    return;
+                }
+                const updated = adminUsers.filter(u => u.id !== id);
+                setAdminUsers(updated);
+                syncToDatabase({ adminUsers: updated });
+                showToast("Akun pengurus berhasil dihapus.");
+            };
+
+            return (
+                <div className="space-y-6 max-w-2xl">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                            <i className="fa-solid fa-user-plus text-sg-green"></i> Tambah Akun Pengurus Baru
+                        </h3>
+                        <form onSubmit={handleAddAdmin} className="space-y-4 text-sm mt-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-slate-400 text-xs mb-1 block font-semibold">Nama Pengurus</label>
+                                    <input type="text" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Contoh: Ust. Abdullah" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-sg-green" required />
+                                </div>
+                                <div>
+                                    <label className="text-slate-400 text-xs mb-1 block font-semibold">Username Login</label>
+                                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Contoh: abdullah" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-sg-green" required />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-slate-400 text-xs mb-1 block font-semibold">Hak Akses (Role)</label>
+                                    <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-sg-green">
+                                        <option value="superadmin">Super Admin (Akses Penuh)</option>
+                                        <option value="bendahara">Bagian Keuangan / Bendahara</option>
+                                        <option value="sekretaris">Sekretaris Pondok</option>
+                                        <option value="media">Tim Media & Publikasi</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-slate-400 text-xs mb-1 block font-semibold">Kata Sandi</label>
+                                    <input type="text" value={sandi} onChange={(e) => setSandi(e.target.value)} placeholder="Sandi..." className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-sg-green" required />
+                                </div>
+                            </div>
+                            <button type="submit" className="w-full bg-sg-green hover:bg-sg-dark text-white font-bold py-2.5 rounded-xl transition shadow-md text-xs">
+                                Tambah Akun Pengurus
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                            <i className="fa-solid fa-user-shield text-sg-green"></i> Kelola & Edit Data Sandi Pengurus
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-6">Sebagai Super Admin, Anda dapat mengedit nama, username, hak akses, dan kata sandi pengurus kapan saja.</p>
+
+                        <div className="space-y-4">
+                            {adminUsers.map(u => (
+                                <div key={u.id} className="bg-slate-700 p-4 rounded-xl border border-slate-600 space-y-3">
+                                    {editingId === u.id ? (
+                                        <div className="space-y-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] text-slate-300 block mb-1">Nama Pengurus</label>
+                                                    <input type="text" value={editNama} onChange={(e) => setEditNama(e.target.value)} className="w-full bg-slate-800 text-white text-xs p-2 rounded border border-slate-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] text-slate-300 block mb-1">Username</label>
+                                                    <input type="text" value={editUsername} onChange={(e) => setEditUsername(e.target.value)} className="w-full bg-slate-800 text-white text-xs p-2 rounded border border-slate-500" />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] text-slate-300 block mb-1">Hak Akses (Role)</label>
+                                                    <select value={editRole} onChange={(e) => setEditRole(e.target.value)} className="w-full bg-slate-800 text-white text-xs p-2 rounded border border-slate-500">
+                                                        <option value="superadmin">Super Admin</option>
+                                                        <option value="bendahara">Bendahara</option>
+                                                        <option value="sekretaris">Sekretaris</option>
+                                                        <option value="media">Media & Publikasi</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] text-slate-300 block mb-1">Kata Sandi</label>
+                                                    <input type="text" value={editSandi} onChange={(e) => setEditSandi(e.target.value)} className="w-full bg-slate-800 text-white text-xs p-2 rounded border border-slate-500 font-mono" />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 justify-end pt-1">
+                                                <button onClick={() => handleUpdateAdmin(u.id)} className="bg-sg-green text-white text-xs px-4 py-2 rounded-lg font-bold">Simpan</button>
+                                                <button onClick={() => setEditingId(null)} className="bg-slate-600 text-slate-200 text-xs px-3 py-2 rounded-lg">Batal</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <div>
+                                                <h4 className="font-bold text-white text-sm">{u.nama}</h4>
+                                                <p className="text-xs text-slate-300 mt-0.5">Username: <strong className="text-emerald-400">{u.username}</strong> | Akses: <span className="text-amber-300 font-semibold">{u.role}</span></p>
+                                                <p className="text-xs text-slate-300 mt-0.5">Sandi: <span className="bg-slate-800 px-2 py-0.5 rounded text-amber-300 font-mono">{u.sandi}</span></p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => {
+                                                    setEditingId(u.id);
+                                                    setEditNama(u.nama);
+                                                    setEditUsername(u.username);
+                                                    setEditRole(u.role);
+                                                    setEditSandi(u.sandi);
+                                                }} className="bg-sky-600 hover:bg-sky-500 text-white text-xs px-3 py-2 rounded-lg transition font-semibold flex items-center gap-1.5">
+                                                    <i className="fa-solid fa-pen-to-square"></i> Edit
+                                                </button>
+                                                <button onClick={() => handleDeleteAdmin(u.id)} className="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white text-xs p-2 rounded-lg transition" title="Hapus Akun">
+                                                    <i className="fa-solid fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const OperatorLogoManager = ({ customLogo, setCustomLogo, syncToDatabase, showToast }) => {
+            const [logoUrl, setLogoUrl] = useState(customLogo || "");
+
+            const handleSaveLogo = (e) => {
+                e.preventDefault();
+                setCustomLogo(logoUrl.trim());
+                syncToDatabase({ customLogo: logoUrl.trim() });
+                showToast("Logo Pon.Pes Sunan Gunungjati berhasil diperbarui real-time!");
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        setLogoUrl(reader.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleResetLogo = () => {
+                setLogoUrl("");
+                setCustomLogo("");
+                syncToDatabase({ customLogo: "" });
+                showToast("Logo dikembalikan ke default.");
+            };
+
+            return (
+                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl max-w-xl">
+                    <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                        <i className="fa-solid fa-shield-halved text-sg-green"></i> Pengaturan Logo Pon.Pes Sunan Gunungjati
+                    </h3>
+                    <p className="text-xs text-slate-400 mb-6">Unggah file logo resmi pondok yang akan tampil di seluruh aplikasi secara real-time.</p>
+
+                    <div className="flex justify-center mb-6">
+                        <div className="w-32 h-32 rounded-full border-4 border-emerald-500/40 overflow-hidden bg-slate-900 shadow-xl flex items-center justify-center">
+                            <LogoSGJ className="w-full h-full" customLogo={logoUrl} />
+                        </div>
+                    </div>
+
+                    <form onSubmit={handleSaveLogo} className="space-y-4">
+                        <div>
+                            <label className="text-xs text-slate-300 block mb-1 font-semibold">Unggah File Gambar Logo</label>
+                            <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={handleFileUpload}
+                                className="w-full bg-slate-700 border border-slate-600 rounded-xl p-2.5 text-white text-xs file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sg-green file:text-white hover:file:bg-sg-dark cursor-pointer" 
+                            />
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <button type="submit" className="flex-1 bg-sg-green hover:bg-sg-dark text-white text-xs font-bold py-3 rounded-xl transition shadow-md">
+                                Simpan & Sinkronkan Logo
+                            </button>
+                            <button type="button" onClick={handleResetLogo} className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-4 py-3 rounded-xl transition">
+                                Reset Default
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
+
+        const OperatorPengumumanManager = ({ pengumuman, setPengumuman, syncToDatabase, showToast }) => {
+            const [title, setTitle] = useState('');
+            const [desc, setDesc] = useState('');
+            const [type, setType] = useState('Umum');
+
+            const handleAddPengumuman = (e) => {
+                e.preventDefault();
+                if (!title || !desc) return;
+                const newP = {
+                    id: 'p_' + Date.now(),
+                    title,
+                    desc,
+                    date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+                    type,
+                    icon: type === 'Kegiatan' ? 'fa-graduation-cap' : 'fa-bullhorn',
+                    color: type === 'Kegiatan' ? 'text-yellow-500' : 'text-orange-500',
+                    bg: type === 'Kegiatan' ? 'bg-yellow-100' : 'bg-orange-100'
+                };
+                const updated = [newP, ...pengumuman];
+                setPengumuman(updated);
+                syncToDatabase({ pengumuman: updated });
+                showToast("Pengumuman berhasil diterbitkan real-time!");
+                setTitle(''); setDesc('');
+            };
+
+            const handleDeletePengumuman = (id) => {
+                const updated = pengumuman.filter(p => p.id !== id);
+                setPengumuman(updated);
+                syncToDatabase({ pengumuman: updated });
+                showToast("Pengumuman berhasil dihapus.");
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <i className="fa-solid fa-bullhorn text-sg-green"></i> Kelola Pengumuman (Media & Publikasi)
+                        </h3>
+                        <form onSubmit={handleAddPengumuman} className="space-y-4 text-sm">
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Judul Pengumuman</label>
+                                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Contoh: Libur Hari Raya" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green" required />
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Kategori / Jenis</label>
+                                <select value={type} onChange={(e) => setType(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green">
+                                    <option value="Umum">Umum</option>
+                                    <option value="Kegiatan">Kegiatan</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Isi Pengumuman</label>
+                                <textarea rows="3" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Tuliskan isi pengumuman secara lengkap..." className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green resize-none" required></textarea>
+                            </div>
+                            <button type="submit" className="w-full bg-sg-green hover:bg-sg-dark text-white font-bold py-3 rounded-xl transition shadow-md">
+                                Terbitkan Pengumuman
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-4">Daftar Pengumuman Aktif</h3>
+                        <div className="space-y-3">
+                            {pengumuman.map(p => (
+                                <div key={p.id} className="bg-slate-700 p-4 rounded-xl border border-slate-600 flex justify-between items-center gap-3">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">{p.type}</span>
+                                            <span className="text-[10px] text-slate-400">{p.date}</span>
+                                        </div>
+                                        <h4 className="font-bold text-white text-sm mt-1">{p.title}</h4>
+                                        <p className="text-xs text-slate-300 mt-0.5">{p.desc}</p>
+                                    </div>
+                                    <button onClick={() => handleDeletePengumuman(p.id)} className="bg-red-500/20 text-red-400 p-2.5 rounded-lg hover:bg-red-500 hover:text-white transition flex-shrink-0">
+                                        <i className="fa-solid fa-trash text-xs"></i>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const OperatorSantriManager = ({ studentsList, setStudentsList, syncToDatabase, showToast }) => {
+            const [nama, setNama] = useState('');
+            const [nis, setNis] = useState('');
+            const [sandi, setSandi] = useState('123456');
+            const [kelas, setKelas] = useState('VII A');
+            const [kamar, setKamar] = useState('1');
+            const [namaWali, setNamaWali] = useState('');
+            const [noHpWali, setNoHpWali] = useState('');
+            const [foto, setFoto] = useState('');
+
+            const [editingStudentId, setEditingStudentId] = useState(null);
+            const [editNama, setEditNama] = useState('');
+            const [editNis, setEditNis] = useState('');
+            const [editKelas, setEditKelas] = useState('');
+            const [editKamar, setEditKamar] = useState('');
+            const [editNamaWali, setEditNamaWali] = useState('');
+            const [editNoHpWali, setEditNoHpWali] = useState('');
+
+            const handleAddSantri = (e) => {
+                e.preventDefault();
+                if (!nama || !nis) return;
+                const defaultFoto = `https://placehold.co/150x150/0a5c36/ffffff?text=${nama.substring(0,2).toUpperCase()}`;
+                const newSantri = {
+                    id: 'santri_' + Date.now(),
+                    nama, nis, sandi, kelas, kamar,
+                    tempatLahir: 'Banyuwangi',
+                    tglLahir: '1 Januari 2011',
+                    namaWali: namaWali || 'Wali Santri',
+                    noHpWali: noHpWali || '08123456789',
+                    foto: foto.trim() ? foto.trim() : defaultFoto,
+                    nilai: [{ id: 'n1', mapel: "Al-Qur'an", nilai: 85 }],
+                    absensi: [{ id: 'a1', tanggal: '10 Juni 2026', status: 'Hadir' }],
+                    pembayaran: [{ id: 'b1', bulan: 'Juli 2026', status: 'Belum', nominal: 'Rp300.000' }],
+                    perizinan: []
+                };
+                const updated = [newSantri, ...studentsList];
+                setStudentsList(updated);
+                syncToDatabase({ studentsList: updated });
+                showToast(`Santri ${nama} berhasil ditambahkan!`);
+                setNama(''); setNis(''); setNamaWali(''); setNoHpWali(''); setFoto('');
+            };
+
+            const handleUpdateStudent = (id) => {
+                if (!editNama || !editNis) {
+                    showToast("Nama dan NIS wajib diisi!");
+                    return;
+                }
+                const updated = studentsList.map(s => s.id === id ? {
+                    ...s,
+                    nama: editNama,
+                    nis: editNis,
+                    kelas: editKelas,
+                    kamar: editKamar,
+                    namaWali: editNamaWali,
+                    noHpWali: editNoHpWali
+                } : s);
+                setStudentsList(updated);
+                syncToDatabase({ studentsList: updated });
+                setEditingStudentId(null);
+                showToast("Data santri berhasil diperbarui!");
+            };
+
+            const handleDeleteSantri = (id) => {
+                if (studentsList.length <= 1) {
+                    showToast("Minimal harus ada 1 data santri!");
+                    return;
+                }
+                const updated = studentsList.filter(s => s.id !== id);
+                setStudentsList(updated);
+                syncToDatabase({ studentsList: updated });
+                showToast("Data santri berhasil dihapus.");
+            };
+
+            const handleResetPassword = (santriId) => {
+                const updated = studentsList.map(s => {
+                    if (s.id === santriId) {
+                        return { ...s, sandi: '123456' };
+                    }
+                    return s;
+                });
+                setStudentsList(updated);
+                syncToDatabase({ studentsList: updated });
+                showToast("Kata sandi berhasil direset menjadi '123456'");
+            };
+
+            const handleUpdateFotoFile = (santriId, e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const updated = studentsList.map(s => {
+                            if (s.id === santriId) {
+                                return { ...s, foto: reader.result };
+                            }
+                            return s;
+                        });
+                        setStudentsList(updated);
+                        syncToDatabase({ studentsList: updated });
+                        showToast("Foto santri berhasil diperbarui!");
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <i className="fa-solid fa-user-plus text-sg-green"></i> Tambah Santri Baru & Data Akademik
+                        </h3>
+                        <form onSubmit={handleAddSantri} className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Nama Lengkap Santri</label>
+                                <input type="text" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Contoh: Ahmad Fauzi" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green" required />
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Nomor Induk Santri (NIS)</label>
+                                <input type="text" value={nis} onChange={(e) => setNis(e.target.value)} placeholder="Contoh: 123459" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green" required />
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Kata Sandi (Password Login Wali)</label>
+                                <input type="text" value={sandi} onChange={(e) => setSandi(e.target.value)} placeholder="Default: 123456" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green" required />
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Foto Santri (Pilih File)</label>
+                                <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const f = e.target.files[0];
+                                        if (f) {
+                                            const r = new FileReader();
+                                            r.onloadend = () => setFoto(r.result);
+                                            r.readAsDataURL(f);
+                                        }
+                                    }}
+                                    className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-white text-xs file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-sg-green file:text-white cursor-pointer" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Kelas & Kamar</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <input type="text" value={kelas} onChange={(e) => setKelas(e.target.value)} placeholder="VIII A" className="bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" required />
+                                    <input type="text" value={kamar} onChange={(e) => setKamar(e.target.value)} placeholder="Kamar 3" className="bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" required />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs mb-1 block">Nama Wali & No HP</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <input type="text" value={namaWali} onChange={(e) => setNamaWali(e.target.value)} placeholder="Nama Wali" className="bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" />
+                                    <input type="text" value={noHpWali} onChange={(e) => setNoHpWali(e.target.value)} placeholder="No HP" className="bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" />
+                                </div>
+                            </div>
+                            <div className="col-span-2 pt-2">
+                                <button type="submit" className="w-full bg-sg-green hover:bg-sg-dark text-white font-bold py-3 rounded-xl transition shadow-md">
+                                    Simpan & Tambahkan Santri Baru
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-4">Daftar Semua Santri, Edit Data, Foto & Sandi</h3>
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                            {studentsList.map(s => (
+                                <div key={s.id} className="bg-slate-700 p-4 rounded-xl border border-slate-600 space-y-3">
+                                    {editingStudentId === s.id ? (
+                                        <div className="space-y-3">
+                                            <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Edit Data Santri: {s.nama}</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                                <div>
+                                                    <label className="text-slate-300 block mb-1">Nama Lengkap</label>
+                                                    <input type="text" value={editNama} onChange={(e) => setEditNama(e.target.value)} className="w-full bg-slate-800 text-white p-2.5 rounded border border-slate-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-slate-300 block mb-1">Nomor Induk (NIS)</label>
+                                                    <input type="text" value={editNis} onChange={(e) => setEditNis(e.target.value)} className="w-full bg-slate-800 text-white p-2.5 rounded border border-slate-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-slate-300 block mb-1">Kelas</label>
+                                                    <input type="text" value={editKelas} onChange={(e) => setEditKelas(e.target.value)} className="w-full bg-slate-800 text-white p-2.5 rounded border border-slate-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-slate-300 block mb-1">Kamar</label>
+                                                    <input type="text" value={editKamar} onChange={(e) => setEditKamar(e.target.value)} className="w-full bg-slate-800 text-white p-2.5 rounded border border-slate-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-slate-300 block mb-1">Nama Wali</label>
+                                                    <input type="text" value={editNamaWali} onChange={(e) => setEditNamaWali(e.target.value)} className="w-full bg-slate-800 text-white p-2.5 rounded border border-slate-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-slate-300 block mb-1">No HP Wali</label>
+                                                    <input type="text" value={editNoHpWali} onChange={(e) => setEditNoHpWali(e.target.value)} className="w-full bg-slate-800 text-white p-2.5 rounded border border-slate-500" />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 justify-end pt-2">
+                                                <button onClick={() => handleUpdateStudent(s.id)} className="bg-sg-green text-white text-xs px-4 py-2 rounded-lg font-bold">Simpan Perubahan</button>
+                                                <button onClick={() => setEditingStudentId(null)} className="bg-slate-600 text-slate-200 text-xs px-3 py-2 rounded-lg">Batal</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <img src={s.foto} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-emerald-500/40 flex-shrink-0" />
+                                                <div>
+                                                    <h4 className="font-bold text-white text-sm">{s.nama}</h4>
+                                                    <p className="text-xs text-slate-300">NIS: <strong className="text-emerald-400">{s.nis}</strong> | Sandi: <span className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">{s.sandi || '123456'}</span></p>
+                                                    <p className="text-[10px] text-slate-400">Kelas: {s.kelas} • Kamar: {s.kamar} • Wali: {s.namaWali} ({s.noHpWali})</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="w-full sm:w-auto space-y-2">
+                                                <div className="flex items-center gap-2 justify-end flex-wrap">
+                                                    <button onClick={() => {
+                                                        setEditingStudentId(s.id);
+                                                        setEditNama(s.nama);
+                                                        setEditNis(s.nis);
+                                                        setEditKelas(s.kelas);
+                                                        setEditKamar(s.kamar);
+                                                        setEditNamaWali(s.namaWali);
+                                                        setEditNoHpWali(s.noHpWali);
+                                                    }} className="bg-sky-600 hover:bg-sky-500 text-white text-xs px-3 py-2 rounded-lg transition font-semibold flex items-center gap-1.5">
+                                                        <i className="fa-solid fa-pen-to-square"></i> Edit
+                                                    </button>
+                                                    <label className="bg-teal-600 hover:bg-teal-500 text-white text-xs px-3 py-2 rounded-lg transition flex items-center gap-1.5 cursor-pointer">
+                                                        <i className="fa-solid fa-camera"></i> Foto
+                                                        <input type="file" accept="image/*" onChange={(e) => handleUpdateFotoFile(s.id, e)} className="hidden" />
+                                                    </label>
+                                                    <button 
+                                                        onClick={() => handleResetPassword(s.id)}
+                                                        className="bg-amber-600 hover:bg-amber-500 text-white text-xs px-3 py-2 rounded-lg transition" title="Reset sandi ke 123456">
+                                                        <i className="fa-solid fa-key"></i> Sandi
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteSantri(s.id)}
+                                                        className="bg-red-600 hover:bg-red-500 text-white text-xs px-3 py-2 rounded-lg transition">
+                                                        <i className="fa-solid fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const OperatorNilaiManager = ({ studentsList, setStudentsList, syncToDatabase, showToast }) => {
+            const [selectedStudentId, setSelectedStudentId] = useState(studentsList[0]?.id || '');
+            const [mapelBaru, setMapelBaru] = useState('');
+            const [nilaiBaru, setNilaiBaru] = useState('');
+
+            const currentStudent = studentsList.find(s => s.id === selectedStudentId) || studentsList[0];
+
+            const handleUpdateNilai = (nilaiId, newScore) => {
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === currentStudent.id) {
+                        const updatedNilai = (s.nilai || []).map(n => n.id === nilaiId ? { ...n, nilai: Number(newScore) } : n);
+                        return { ...s, nilai: updatedNilai };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast("Nilai berhasil diperbarui!");
+            };
+
+            const handleAddMapel = (e) => {
+                e.preventDefault();
+                if (!mapelBaru || nilaiBaru === '') return;
+                const newEntry = {
+                    id: 'n_' + Date.now(),
+                    mapel: mapelBaru,
+                    nilai: Number(nilaiBaru)
+                };
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === currentStudent.id) {
+                        return { ...s, nilai: [...(s.nilai || []), newEntry] };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast(`Mata pelajaran "${mapelBaru}" ditambahkan ke ${currentStudent.nama}!`);
+                setMapelBaru(''); setNilaiBaru('');
+            };
+
+            const handleDeleteMapel = (nilaiId) => {
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === currentStudent.id) {
+                        return { ...s, nilai: (s.nilai || []).filter(n => n.id !== nilaiId) };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast("Mata pelajaran berhasil dihapus.");
+            };
+
+            if (!currentStudent) return <div className="text-white">Belum ada data santri.</div>;
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                            <i className="fa-solid fa-book-open text-sg-green"></i> Kelola Nilai & Mata Pelajaran Per Santri
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-4">Pilih santri untuk melihat dan mengubah nilai mata pelajaran kitab/sekolah mereka secara real-time.</p>
+                        
+                        <div className="mb-4">
+                            <label className="text-xs text-slate-300 block mb-1 font-semibold">Pilih Santri</label>
+                            <select 
+                                value={selectedStudentId} 
+                                onChange={(e) => setSelectedStudentId(e.target.value)}
+                                className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-sg-green">
+                                {studentsList.map(s => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.nama} (NIS: {s.nis} - Kelas {s.kelas})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <form onSubmit={handleAddMapel} className="bg-slate-700/50 p-4 rounded-xl border border-slate-600 mb-6 space-y-3">
+                            <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Tambah Mata Pelajaran / Kitab Baru untuk {currentStudent.nama}</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="sm:col-span-2">
+                                    <input 
+                                        type="text" 
+                                        value={mapelBaru} 
+                                        onChange={(e) => setMapelBaru(e.target.value)} 
+                                        placeholder="Nama Mapel / Kitab (Contoh: Fathul Qarib / Tajwid)" 
+                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" 
+                                        required 
+                                    />
+                                </div>
+                                <div>
+                                    <input 
+                                        type="number" 
+                                        value={nilaiBaru} 
+                                        onChange={(e) => setNilaiBaru(e.target.value)} 
+                                        placeholder="Nilai (0-100)" 
+                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" 
+                                        required 
+                                    />
+                                </div>
+                            </div>
+                            <button type="submit" className="w-full bg-sg-green hover:bg-sg-dark text-white text-xs font-bold py-2.5 rounded-lg transition">
+                                Tambahkan Mapel & Nilai
+                            </button>
+                        </form>
+
+                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wide mb-3">Daftar Nilai {currentStudent.nama}</h4>
+                        <div className="space-y-3">
+                            {currentStudent.nilai && currentStudent.nilai.length > 0 ? (
+                                currentStudent.nilai.map(n => (
+                                    <div key={n.id} className="bg-slate-700 p-3.5 rounded-xl border border-slate-600 flex items-center justify-between gap-3">
+                                        <div className="flex-1">
+                                            <span className="text-sm font-semibold text-white">{n.mapel}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="number" 
+                                                defaultValue={n.nilai}
+                                                onBlur={(e) => handleUpdateNilai(n.id, e.target.value)}
+                                                className="w-20 bg-slate-800 border border-slate-500 rounded-lg p-2 text-center text-white font-bold text-sm focus:outline-none focus:border-sg-green"
+                                            />
+                                            <button 
+                                                onClick={() => handleDeleteMapel(n.id)}
+                                                className="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white p-2 rounded-lg transition text-xs" title="Hapus Mapel">
+                                                <i className="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-400 italic">Belum ada mata pelajaran untuk santri ini.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const OperatorAbsensiManager = ({ studentsList, setStudentsList, syncToDatabase, showToast }) => {
+            const [selectedStudentId, setSelectedStudentId] = useState(studentsList[0]?.id || '');
+            const [tanggalAbsen, setTanggalAbsen] = useState(new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }));
+            const [statusAbsen, setStatusAbsen] = useState('Hadir');
+
+            const currentStudent = studentsList.find(s => s.id === selectedStudentId) || studentsList[0];
+
+            const handleAddAbsensi = (e) => {
+                e.preventDefault();
+                if (!tanggalAbsen) return;
+                const newAbsen = {
+                    id: 'a_' + Date.now(),
+                    tanggal: tanggalAbsen,
+                    status: statusAbsen
+                };
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === currentStudent.id) {
+                        return { ...s, absensi: [newAbsen, ...(s.absensi || [])] };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast(`Absensi ${statusAbsen} untuk ${currentStudent.nama} berhasil dicatat!`);
+            };
+
+            const handleDeleteAbsensi = (absenId) => {
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === currentStudent.id) {
+                        return { ...s, absensi: (s.absensi || []).filter(a => a.id !== absenId) };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast("Catatan absensi dihapus.");
+            };
+
+            if (!currentStudent) return <div className="text-white">Belum ada data santri.</div>;
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                            <i className="fa-solid fa-calendar-check text-sg-green"></i> Kelola Absensi Harian Per Santri
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-4">Catat kehadiran santri (Hadir, Izin, Sakit, atau Alpha) secara individu secara real-time.</p>
+
+                        <div className="mb-4">
+                            <label className="text-xs text-slate-300 block mb-1 font-semibold">Pilih Santri</label>
+                            <select 
+                                value={selectedStudentId} 
+                                onChange={(e) => setSelectedStudentId(e.target.value)}
+                                className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-sg-green">
+                                {studentsList.map(s => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.nama} (NIS: {s.nis} - Kamar {s.kamar})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <form onSubmit={handleAddAbsensi} className="bg-slate-700/50 p-4 rounded-xl border border-slate-600 mb-6 space-y-3">
+                            <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Catat Absensi Baru untuk {currentStudent.nama}</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[11px] text-slate-300 block mb-1">Keterangan Tanggal</label>
+                                    <input 
+                                        type="text" 
+                                        value={tanggalAbsen} 
+                                        onChange={(e) => setTanggalAbsen(e.target.value)} 
+                                        placeholder="Contoh: 10 Juli 2026" 
+                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" 
+                                        required 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] text-slate-300 block mb-1">Status Kehadiran</label>
+                                    <select 
+                                        value={statusAbsen} 
+                                        onChange={(e) => setStatusAbsen(e.target.value)}
+                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs">
+                                        <option value="Hadir">Hadir</option>
+                                        <option value="Izin">Izin</option>
+                                        <option value="Sakit">Sakit</option>
+                                        <option value="Alpha">Alpha / Mangkir</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" className="w-full bg-sg-green hover:bg-sg-dark text-white text-xs font-bold py-2.5 rounded-lg transition">
+                                Simpan Absensi Santri
+                            </button>
+                        </form>
+
+                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wide mb-3">Riwayat Absensi {currentStudent.nama}</h4>
+                        <div className="space-y-2">
+                            {currentStudent.absensi && currentStudent.absensi.length > 0 ? (
+                                currentStudent.absensi.map(a => (
+                                    <div key={a.id} className="bg-slate-700 p-3.5 rounded-xl border border-slate-600 flex items-center justify-between text-sm">
+                                        <span className="text-slate-200 font-medium">{a.tanggal}</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                                a.status === 'Hadir' ? 'bg-emerald-500/20 text-emerald-300' :
+                                                a.status === 'Izin' ? 'bg-amber-500/20 text-amber-300' :
+                                                a.status === 'Sakit' ? 'bg-sky-500/20 text-sky-300' : 'bg-red-500/20 text-red-300'
+                                            }`}>
+                                                {a.status}
+                                            </span>
+                                            <button 
+                                                onClick={() => handleDeleteAbsensi(a.id)}
+                                                className="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white p-1.5 rounded-lg transition text-xs" title="Hapus Absen">
+                                                <i className="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-400 italic">Belum ada catatan absensi untuk santri ini.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const OperatorPembayaranManager = ({ studentsList, setStudentsList, syncToDatabase, showToast }) => {
+            const [selectedStudentId, setSelectedStudentId] = useState(studentsList[0]?.id || '');
+            const [bulanBaru, setBulanBaru] = useState('');
+            const [nominalBaru, setNominalBaru] = useState('300000');
+            const [statusBaru, setStatusBaru] = useState('Belum');
+
+            const currentStudent = studentsList.find(s => s.id === selectedStudentId) || studentsList[0];
+
+            const handleToggleStatus = (pembayaranId) => {
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === currentStudent.id) {
+                        const updatedPembayaran = (s.pembayaran || []).map(p => {
+                            if (p.id === pembayaranId) {
+                                return { ...p, status: p.status === 'Lunas' ? 'Belum' : 'Lunas' };
+                            }
+                            return p;
+                        });
+                        return { ...s, pembayaran: updatedPembayaran };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast("Status tagihan keuangan berhasil diperbarui real-time!");
+            };
+
+            const handleAddTagihan = (e) => {
+                e.preventDefault();
+                if (!bulanBaru || !nominalBaru) return;
+                const formattedNominal = nominalBaru.startsWith('Rp') ? nominalBaru : `Rp${Number(nominalBaru).toLocaleString('id-ID')}`;
+                const newTagihan = {
+                    id: 'b_' + Date.now(),
+                    bulan: bulanBaru,
+                    status: statusBaru,
+                    nominal: formattedNominal
+                };
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === currentStudent.id) {
+                        return { ...s, pembayaran: [newTagihan, ...(s.pembayaran || [])] };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast(`Tagihan keuangan ${bulanBaru} ditambahkan ke ${currentStudent.nama}!`);
+                setBulanBaru('');
+            };
+
+            const handleDeleteTagihan = (pembayaranId) => {
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === currentStudent.id) {
+                        return { ...s, pembayaran: (s.pembayaran || []).filter(p => p.id !== pembayaranId) };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast("Tagihan keuangan berhasil dihapus.");
+            };
+
+            if (!currentStudent) return <div className="text-white">Belum ada data santri.</div>;
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                            <i className="fa-solid fa-wallet text-sg-green"></i> Kelola Keuangan, Tagihan & SPP (Bendahara)
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-4">Pilih santri untuk mengelola rincian keuangan, tagihan bulanan, dan status pembayaran SPP secara real-time.</p>
+
+                        <div className="mb-4">
+                            <label className="text-xs text-slate-300 block mb-1 font-semibold">Pilih Santri</label>
+                            <select 
+                                value={selectedStudentId} 
+                                onChange={(e) => setSelectedStudentId(e.target.value)}
+                                className="w-full bg-slate-700 border border-slate-600 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-sg-green">
+                                {studentsList.map(s => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.nama} (NIS: {s.nis} - Kelas {s.kelas})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <form onSubmit={handleAddTagihan} className="bg-slate-700/50 p-4 rounded-xl border border-slate-600 mb-6 space-y-3">
+                            <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Tambah Tagihan Keuangan Baru untuk {currentStudent.nama}</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-[11px] text-slate-300 block mb-1">Bulan / Keterangan</label>
+                                    <input 
+                                        type="text" 
+                                        value={bulanBaru} 
+                                        onChange={(e) => setBulanBaru(e.target.value)} 
+                                        placeholder="Contoh: November 2026" 
+                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" 
+                                        required 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] text-slate-300 block mb-1">Nominal (Rp)</label>
+                                    <input 
+                                        type="text" 
+                                        value={nominalBaru} 
+                                        onChange={(e) => setNominalBaru(e.target.value)} 
+                                        placeholder="300000" 
+                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs" 
+                                        required 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] text-slate-300 block mb-1">Status Awal</label>
+                                    <select 
+                                        value={statusBaru} 
+                                        onChange={(e) => setStatusBaru(e.target.value)}
+                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs">
+                                        <option value="Belum">Belum Lunas</option>
+                                        <option value="Lunas">Lunas</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" className="w-full bg-sg-green hover:bg-sg-dark text-white text-xs font-bold py-2.5 rounded-lg transition">
+                                Tambah Tagihan Keuangan
+                            </button>
+                        </form>
+
+                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wide mb-3">Daftar Tagihan Keuangan {currentStudent.nama}</h4>
+                        <div className="space-y-3">
+                            {currentStudent.pembayaran && currentStudent.pembayaran.length > 0 ? (
+                                currentStudent.pembayaran.map(b => (
+                                    <div key={b.id} className="bg-slate-700 p-3.5 rounded-xl border border-slate-600 flex items-center justify-between gap-3">
+                                        <div>
+                                            <h5 className="text-sm font-bold text-white">{b.bulan}</h5>
+                                            <p className="text-xs text-emerald-400 font-semibold">{b.nominal}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => handleToggleStatus(b.id)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                                                    b.status === 'Lunas' ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30' : 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                                                }`}>
+                                                {b.status} (Ubah Status)
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteTagihan(b.id)}
+                                                className="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white p-2 rounded-lg transition text-xs" title="Hapus Tagihan">
+                                                <i className="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-400 italic">Belum ada tagihan keuangan untuk santri ini.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const OperatorPerizinanManager = ({ studentsList, setStudentsList, syncToDatabase, showToast }) => {
+            const handleUpdatePermissionStatus = (santriId, izinId, newStatus) => {
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === santriId) {
+                        const updatedPerizinan = (s.perizinan || []).map(i => {
+                            if (i.id === izinId) {
+                                return { ...i, status: newStatus };
+                            }
+                            return i;
+                        });
+                        return { ...s, perizinan: updatedPerizinan };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast(`Status perizinan diubah menjadi "${newStatus}" real-time!`);
+            };
+
+            const handleDeletePermission = (santriId, izinId) => {
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === santriId) {
+                        return { ...s, perizinan: (s.perizinan || []).filter(i => i.id !== izinId) };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+                showToast("Pengajuan izin berhasil dihapus.");
+            };
+
+            const allPermissions = [];
+            studentsList.forEach(s => {
+                if (s.perizinan && s.perizinan.length > 0) {
+                    s.perizinan.forEach(i => {
+                        allPermissions.push({ ...i, studentId: s.id, studentName: s.nama, studentClass: s.kelas });
+                    });
+                }
+            });
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                            <i className="fa-solid fa-clipboard-check text-sg-green"></i> Persetujuan & Pengelolaan Izin Santri
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-6">Tinjau, setujui, tolak, atau hapus pengajuan izin dari wali santri secara real-time.</p>
+
+                        <div className="space-y-4">
+                            {allPermissions.length > 0 ? (
+                                allPermissions.map(item => (
+                                    <div key={item.id} className="bg-slate-700 p-4 rounded-xl border border-slate-600 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded">
+                                                    {item.studentName} ({item.studentClass})
+                                                </span>
+                                                <span className="text-xs font-bold text-amber-400">• {item.jenis}</span>
+                                                <span className="text-[10px] text-slate-400">({item.tglPengajuan})</span>
+                                            </div>
+                                            <p className="text-xs text-white font-medium">Tanggal Izin: <span className="text-emerald-400">{item.tanggal}</span></p>
+                                            <p className="text-xs text-slate-300">Alasan: {item.alasan}</p>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+                                            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                                                item.status === 'Disetujui' ? 'bg-emerald-500/20 text-emerald-300' :
+                                                item.status === 'Ditolak' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'
+                                            }`}>
+                                                {item.status}
+                                            </span>
+
+                                            <button 
+                                                onClick={() => handleUpdatePermissionStatus(item.studentId, item.id, 'Disetujui')}
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg transition" title="Setujui">
+                                                <i className="fa-solid fa-check"></i> Setujui
+                                            </button>
+                                            <button 
+                                                onClick={() => handleUpdatePermissionStatus(item.studentId, item.id, 'Ditolak')}
+                                                className="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded-lg transition" title="Tolak">
+                                                <i className="fa-solid fa-xmark"></i> Tolak
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeletePermission(item.studentId, item.id)}
+                                                className="bg-red-600/80 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg transition" title="Hapus">
+                                                <i className="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-400 italic text-center py-6">Belum ada pengajuan perizinan santri saat ini.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const OperatorPanel = ({
+            activeTabOperator, setActiveTabOperator, studentsList, setStudentsList,
+            pengumuman, setPengumuman, dokumentasi, setDokumentasi, adminUsers, setAdminUsers, customLogo, setCustomLogo,
+            contactInfo, setContactInfo, syncToDatabase, onLogout, showToast, adminUser
+        }) => {
+            const role = adminUser?.role || 'superadmin';
+
+            const allMenu = [
+                { id: 'admins', label: 'Kelola Sandi Pengurus', icon: 'fa-user-shield', roles: ['superadmin'] },
+                { id: 'santri', label: 'Data, Foto & Sandi Santri', icon: 'fa-user-graduate', roles: ['superadmin', 'sekretaris'] },
+                { id: 'logo', label: 'Ganti Logo Pondok', icon: 'fa-shield-halved', roles: ['superadmin', 'media'] },
+                { id: 'kontak', label: 'Kelola Menu Hubungi & Sharelok', icon: 'fa-headset', roles: ['superadmin', 'sekretaris', 'media'] },
+                { id: 'pengumuman', label: 'Kelola Pengumuman', icon: 'fa-bullhorn', roles: ['superadmin', 'media'] },
+                { id: 'dokumentasi', label: 'Folder Dokumentasi', icon: 'fa-folder-open', roles: ['superadmin', 'media'] },
+                { id: 'nilai', label: 'Nilai & Mapel Santri', icon: 'fa-book-open', roles: ['superadmin', 'sekretaris'] },
+                { id: 'absensi', label: 'Absensi Per Santri', icon: 'fa-calendar-check', roles: ['superadmin', 'sekretaris'] },
+                { id: 'pembayaran', label: 'Tagihan Keuangan / SPP', icon: 'fa-wallet', roles: ['superadmin', 'bendahara'] },
+                { id: 'perizinan', label: 'Persetujuan Izin', icon: 'fa-clipboard-check', roles: ['superadmin', 'sekretaris'] },
+                { id: 'gdrive', label: 'Backup Excel (.xlsx)', icon: 'fa-file-excel', roles: ['superadmin'] }
+            ];
+
+            const allowedMenu = allMenu.filter(item => item.roles.includes(role));
+
+            useEffect(() => {
+                if (!allowedMenu.some(m => m.id === activeTabOperator)) {
+                    if (allowedMenu.length > 0) setActiveTabOperator(allowedMenu[0].id);
+                }
+            }, [role]);
+
+            return (
+                <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+                    <header className="bg-slate-800 border-b border-slate-700 px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-30 gap-3">
+                        <div className="flex items-center gap-3">
+                            <LogoSGJ className="w-10 h-10" customLogo={customLogo} />
+                            <div>
+                                <h1 className="font-bold text-lg leading-none text-white">Panel Pengurus SIWASGA</h1>
+                                <p className="text-xs text-emerald-400 mt-1">Login sebagai: <strong>{adminUser.nama}</strong></p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <button onClick={onLogout} className="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 shadow-md">
+                                <i className="fa-solid fa-right-from-bracket"></i> Keluar
+                            </button>
+                        </div>
+                    </header>
+
+                    <div className="flex-1 flex overflow-hidden">
+                        <aside className="w-64 bg-slate-800 border-r border-slate-700 p-4 space-y-2 flex-shrink-0 hidden md:block overflow-y-auto">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 px-3 tracking-wider">Menu Hak Akses</p>
+                            {allowedMenu.map(item => (
+                                <button 
+                                    key={item.id}
+                                    onClick={() => setActiveTabOperator(item.id)}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${activeTabOperator === item.id ? 'bg-sg-green text-white shadow-md' : 'text-slate-300 hover:bg-slate-700'}`}>
+                                    <i className={`fa-solid ${item.icon} w-5`}></i>
+                                    <span>{item.label}</span>
+                                </button>
+                            ))}
+                        </aside>
+
+                        <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-slate-900">
+                            {activeTabOperator === 'admins' && role === 'superadmin' && (
+                                <OperatorAdminManager adminUsers={adminUsers} setAdminUsers={setAdminUsers} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'santri' && (
+                                <OperatorSantriManager studentsList={studentsList} setStudentsList={setStudentsList} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'logo' && (
+                                <OperatorLogoManager customLogo={customLogo} setCustomLogo={setCustomLogo} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'kontak' && (
+                                <OperatorContactManager contactInfo={contactInfo} setContactInfo={setContactInfo} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'pengumuman' && (
+                                <OperatorPengumumanManager pengumuman={pengumuman} setPengumuman={setPengumuman} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'dokumentasi' && (
+                                <OperatorDokumentasiManager dokumentasi={dokumentasi} setDokumentasi={setDokumentasi} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'nilai' && (
+                                <OperatorNilaiManager studentsList={studentsList} setStudentsList={setStudentsList} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'absensi' && (
+                                <OperatorAbsensiManager studentsList={studentsList} setStudentsList={setStudentsList} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'pembayaran' && (
+                                <OperatorPembayaranManager studentsList={studentsList} setStudentsList={setStudentsList} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'perizinan' && (
+                                <OperatorPerizinanManager studentsList={studentsList} setStudentsList={setStudentsList} syncToDatabase={syncToDatabase} showToast={showToast} />
+                            )}
+                            {activeTabOperator === 'gdrive' && role === 'superadmin' && (
+                                <div className="max-w-xl bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4">
+                                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                        <i className="fa-solid fa-file-excel text-green-400"></i> Backup Data Microsoft Excel (.xlsx)
+                                    </h3>
+                                    <p className="text-xs text-slate-300 leading-relaxed">
+                                        Unduh seluruh data database pondok (Data Santri, Pengumuman, dan Akun Pengurus) langsung ke dalam format lembar kerja Microsoft Excel untuk diarsipkan atau diunggah ke Google Drive pondok.
+                                    </p>
+                                    <button onClick={() => exportToExcel(studentsList, pengumuman, adminUsers, showToast)} className="w-full bg-sg-green hover:bg-sg-dark text-white font-semibold py-3 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-md">
+                                        <i className="fa-solid fa-file-excel text-green-300"></i> Unduh File Excel (.xlsx) Sekarang
+                                    </button>
+                                </div>
+                            )}
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        const SubHeader = ({ title, onBack }) => (
+            <div className="bg-sg-green text-white p-4 flex items-center sticky top-0 z-20 shadow-md">
+                <button onClick={onBack} className="p-2 mr-2 hover:bg-sg-dark rounded-full transition">
+                    <i className="fa-solid fa-arrow-left"></i>
+                </button>
+                <h1 className="font-semibold text-lg">{title}</h1>
+            </div>
+        );
+
+        const WaliBeranda = ({ student, navigateTo, onOpenApkModal, customLogo }) => (
+            <div className="flex-1 overflow-y-auto pb-20">
+                <div className="bg-sg-green pt-6 pb-16 px-6 rounded-b-[40px] relative z-0">
+                    <div className="flex justify-between items-center mb-6 text-white">
+                        <div className="flex items-center gap-3">
+                            <LogoSGJ className="w-12 h-12 drop-shadow-md" customLogo={customLogo} />
+                            <div>
+                                <h1 className="font-black text-lg leading-tight tracking-wider">SIWASGA</h1>
+                                <p className="text-[10px] opacity-90 font-medium">Pon.Pes Sunan Gunungjati Banyuwangi</p>
+                            </div>
+                        </div>
+                        <button onClick={onOpenApkModal} className="p-2 hover:bg-sg-dark/50 rounded-full transition text-white" title="Unduh APK">
+                            <i className="fa-solid fa-download text-lg"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="px-5 -mt-12 relative z-10">
+                    <div className="bg-white rounded-2xl shadow-md p-5 flex items-center justify-between border border-gray-100">
+                        <div>
+                            <p className="text-gray-500 text-xs mb-1">Assalamu'alaikum,</p>
+                            <h2 className="font-bold text-gray-800 text-lg mb-3">Bapak/Ibu {student.namaWali}</h2>
+                            <p className="text-gray-500 text-xs">Wali dari:</p>
+                            <h3 className="font-bold text-sg-green text-base">{student.nama}</h3>
+                            <p className="text-gray-600 text-xs mt-1">Kelas: {student.kelas} • Kamar: {student.kamar}</p>
+                        </div>
+                        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-sg-light shadow-inner flex-shrink-0">
+                            <img src={student.foto} alt="Student" className="w-full h-full object-cover" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="px-5 mt-4">
+                    <div onClick={onOpenApkModal} className="bg-gradient-to-r from-emerald-800 to-sg-green text-white rounded-2xl p-4 flex items-center justify-between cursor-pointer shadow-md hover:opacity-95 transition border border-emerald-400/30">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">
+                                <i className="fa-solid fa-file-excel text-green-300"></i>
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-xs">Unduh APK & Backup Excel</h4>
+                                <p className="text-[10px] opacity-90">Install aplikasi & unduh data ke Excel</p>
+                            </div>
+                        </div>
+                        <span className="text-xs bg-white text-sg-dark px-3 py-1.5 rounded-lg font-bold shadow-sm">Buka</span>
+                    </div>
+                </div>
+
+                <div className="px-5 mt-6">
+                    <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+                        <MenuIcon icon="fa-bullhorn" label="Pengumuman" onClick={() => navigateTo('pengumuman')} color="text-teal-600" bg="bg-teal-50" />
+                        <MenuIcon icon="fa-wallet" label="Pembayaran" onClick={() => navigateTo('pembayaran')} color="text-green-600" bg="bg-green-50" />
+                        <MenuIcon icon="fa-book-open" label="Nilai" onClick={() => navigateTo('nilai')} color="text-blue-600" bg="bg-blue-50" />
+                        <MenuIcon icon="fa-calendar-check" label="Absensi" onClick={() => navigateTo('absensi')} color="text-indigo-600" bg="bg-indigo-50" />
+                        <MenuIcon icon="fa-clipboard-list" label="Perizinan" onClick={() => navigateTo('perizinan')} color="text-orange-600" bg="bg-orange-50" />
+                        <MenuIcon icon="fa-images" label="Dokumentasi" onClick={() => navigateTo('dokumentasi')} color="text-purple-600" bg="bg-purple-50" />
+                        <MenuIcon icon="fa-headset" label="Hubungi" onClick={() => navigateTo('hubungi')} color="text-red-500" bg="bg-red-50" />
+                        <MenuIcon icon="fa-user" label="Profil" onClick={() => navigateTo('profil')} color="text-gray-600" bg="bg-gray-100" />
+                    </div>
+                </div>
+            </div>
+        );
+
+        const WaliDokumentasiView = ({ dokumentasi, goBack, showToast }) => {
+            const [selectedFolder, setSelectedFolder] = useState(null);
+            const [previewPhoto, setPreviewPhoto] = useState(null);
+
+            if (selectedFolder) {
+                const photos = selectedFolder.fotoList || (selectedFolder.foto ? [selectedFolder.foto] : []);
+                return (
+                    <div className="flex-1 flex flex-col bg-gray-50">
+                        <SubHeader title={selectedFolder.judul} onBack={() => setSelectedFolder(null)} />
+                        
+                        <div className="p-4 bg-white border-b border-gray-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="font-bold text-gray-800 text-sm">{selectedFolder.judul}</h3>
+                                <p className="text-[11px] text-gray-500">{selectedFolder.tanggal} • {photos.length} Foto</p>
+                            </div>
+                            <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold">
+                                Album Folder
+                            </span>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                {photos.map((url, idx) => (
+                                    <div 
+                                        key={idx} 
+                                        onClick={() => setPreviewPhoto(url)}
+                                        className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer group relative aspect-square">
+                                        <img src={url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold gap-1">
+                                            <i className="fa-solid fa-magnifying-glass-plus"></i> Buka
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {previewPhoto && (
+                            <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4">
+                                <button 
+                                    onClick={() => setPreviewPhoto(null)}
+                                    className="absolute top-4 right-4 text-white text-2xl p-2 bg-slate-800/80 rounded-full w-10 h-10 flex items-center justify-center">
+                                    <i className="fa-solid fa-xmark"></i>
+                                </button>
+
+                                <div className="max-w-full max-h-[75vh] mb-6 rounded-2xl overflow-hidden shadow-2xl">
+                                    <img src={previewPhoto} alt="Preview" className="w-full h-full object-contain" />
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button 
+                                        onClick={() => {
+                                            handleDownloadPhoto(previewPhoto, `${selectedFolder.judul.replace(/\s+/g, '_')}_Dokumentasi.jpg`);
+                                            showToast("Mengunduh foto...");
+                                        }}
+                                        className="bg-sg-green hover:bg-sg-dark text-white font-bold py-3 px-6 rounded-xl transition flex items-center gap-2 shadow-lg text-xs">
+                                        <i className="fa-solid fa-download"></i>
+                                        <span>Unduh Foto Ini</span>
+                                    </button>
+
+                                    <button 
+                                        onClick={() => window.open(previewPhoto, '_blank')}
+                                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-3 px-4 rounded-xl transition text-xs border border-slate-700">
+                                        <i className="fa-solid fa-up-right-from-square"></i> Ukuran Penuh
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex-1 flex flex-col bg-gray-50">
+                    <SubHeader title="Folder Dokumentasi" onBack={goBack} />
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        <p className="text-xs text-gray-500 mb-2">Pilih folder kegiatan di bawah ini untuk melihat dan mengunduh galeri foto:</p>
+                        {dokumentasi.map(d => {
+                            const list = d.fotoList || (d.foto ? [d.foto] : []);
+                            const cover = list[0] || 'https://placehold.co/600x400/0a5c36/ffffff?text=Folder';
+                            return (
+                                <div 
+                                    key={d.id} 
+                                    onClick={() => setSelectedFolder(d)}
+                                    className="bg-white p-3.5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3.5 cursor-pointer hover:border-sg-green transition">
+                                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0 relative">
+                                        <img src={cover} alt="" className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center text-white text-xs">
+                                            <i className="fa-solid fa-folder-open"></i>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-gray-800 text-sm truncate">{d.judul}</h4>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">{d.tanggal}</p>
+                                        <span className="inline-block text-[10px] bg-emerald-50 text-sg-green font-bold px-2 py-0.5 rounded mt-1">
+                                            <i className="fa-solid fa-images mr-1"></i> {list.length} Foto Tersedia
+                                        </span>
+                                    </div>
+                                    <i className="fa-solid fa-chevron-right text-gray-400 text-xs pr-1"></i>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        const WaliApp = ({
+            student, studentsList, setStudentsList, pengumuman, dokumentasi, customLogo, contactInfo,
+            syncToDatabase, showToast, onLogout, onOpenApkModal
+        }) => {
+            const [currentView, setCurrentView] = useState('beranda');
+            const navigateTo = (v) => setCurrentView(v);
+            const goBack = () => setCurrentView('beranda');
+
+            const [jenis, setJenis] = useState('');
+            const [alasan, setAlasan] = useState('');
+            const [tanggal, setTanggal] = useState('');
+
+            const handleSubmitIzin = (e) => {
+                e.preventDefault();
+                if (!jenis || !alasan || !tanggal) return;
+                const newItem = {
+                    id: 'izin_' + Date.now(),
+                    tanggal, jenis, alasan, status: 'Menunggu',
+                    tglPengajuan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                };
+
+                const updatedStudents = studentsList.map(s => {
+                    if (s.id === student.id) {
+                        return { ...s, perizinan: [newItem, ...(s.perizinan || [])] };
+                    }
+                    return s;
+                });
+                setStudentsList(updatedStudents);
+                syncToDatabase({ studentsList: updatedStudents });
+
+                setJenis(''); setAlasan(''); setTanggal('');
+                showToast("Pengajuan izin berhasil dikirim ke pengurus pondok real-time!");
+            };
+
+            const totalBelumLunas = (student.pembayaran || []).filter(p => p.status !== 'Lunas').reduce((sum, p) => {
+                const num = parseInt((p.nominal || '').replace(/[^0-9]/g, '')) || 300000;
+                return sum + num;
+            }, 0);
+
+            const contact = contactInfo || initialContactInfo;
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 p-0 sm:p-6">
+                    <div className="w-full max-w-md bg-gray-50 h-screen sm:h-[844px] sm:rounded-[40px] relative app-container overflow-hidden flex flex-col sm:border-8 sm:border-slate-800 shadow-2xl">
+                        <div className="bg-slate-900 text-slate-200 px-4 py-2 text-xs flex justify-between items-center z-50">
+                            <span className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                                Login Aktif (NIS: {student.nis})
+                            </span>
+                            <button onClick={onLogout} className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded text-[10px] font-bold">Keluar</button>
+                        </div>
+
+                        {currentView === 'beranda' && <WaliBeranda student={student} navigateTo={navigateTo} onOpenApkModal={onOpenApkModal} customLogo={customLogo} />}
+                        {currentView === 'profil' && (
+                            <div className="flex-1 flex flex-col bg-white">
+                                <SubHeader title="Profil Santri" onBack={goBack} />
+                                <div className="flex-1 overflow-y-auto pb-6">
+                                    <div className="bg-sg-green pt-6 pb-12 flex flex-col items-center rounded-b-[30px]">
+                                        <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden mb-3 shadow-md">
+                                            <img src={student.foto} alt="Profile" className="w-full h-full object-cover" />
+                                        </div>
+                                        <h2 className="text-white font-bold text-lg">{student.nama}</h2>
+                                        <p className="text-sg-light text-sm opacity-90">Santri Aktif</p>
+                                    </div>
+                                    <div className="px-5 -mt-6 space-y-4">
+                                        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-2">
+                                            <ProfileItem icon="fa-user" label="Nama Santri" value={student.nama} />
+                                            <ProfileItem icon="fa-id-card" label="NIS" value={student.nis} />
+                                            <ProfileItem icon="fa-map-marker-alt" label="Tempat, Tgl Lahir" value={`${student.tempatLahir}, ${student.tglLahir}`} />
+                                            <ProfileItem icon="fa-school" label="Kelas" value={student.kelas} />
+                                            <ProfileItem icon="fa-bed" label="Kamar" value={student.kamar} />
+                                            <ProfileItem icon="fa-user-tie" label="Nama Wali" value={student.namaWali} />
+                                            <ProfileItem icon="fa-phone" label="No. HP Wali" value={student.noHpWali} noBorder />
+                                        </div>
+                                        <button onClick={onLogout} className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold py-3 rounded-xl transition text-xs flex items-center justify-center gap-2">
+                                            <i className="fa-solid fa-right-from-bracket"></i> Keluar dari Akun Wali
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {currentView === 'pembayaran' && (
+                            <div className="flex-1 flex flex-col bg-gray-50">
+                                <SubHeader title="Tagihan & Pembayaran" onBack={goBack} />
+                                <div className="flex-1 overflow-y-auto p-5">
+                                    <div className="bg-white rounded-xl shadow-sm border border-red-100 p-5 mb-6 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs text-gray-500 mb-1">Total Tagihan Belum Lunas</p>
+                                            <p className="text-2xl font-bold text-red-600">Rp{totalBelumLunas.toLocaleString('id-ID')}</p>
+                                        </div>
+                                    </div>
+                                    <h3 className="font-semibold text-gray-800 mb-4">Riwayat Tagihan & SPP</h3>
+                                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                        {student.pembayaran && student.pembayaran.length > 0 ? (
+                                            student.pembayaran.map((item, index) => (
+                                                <div key={item.id || index} className={`flex justify-between items-center p-4 ${index !== student.pembayaran.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                                                    <span className="text-sm font-medium text-gray-700">{item.bulan}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${item.status === 'Lunas' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{item.status}</span>
+                                                        <span className="text-sm font-semibold text-gray-800 w-24 text-right">{item.nominal}</span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="p-4 text-xs text-gray-500 text-center">Belum ada tagihan.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {currentView === 'pengumuman' && (
+                            <div className="flex-1 flex flex-col bg-gray-50">
+                                <SubHeader title="Pengumuman" onBack={goBack} />
+                                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                    {pengumuman.map(item => (
+                                        <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${item.bg || 'bg-teal-100'} ${item.color || 'text-teal-600'}`}>
+                                                <i className={`fa-solid ${item.icon || 'fa-bullhorn'}`}></i>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-semibold text-gray-800 text-sm mb-1">{item.title}</h4>
+                                                <p className="text-xs text-gray-600 leading-relaxed mb-2">{item.desc}</p>
+                                                <span className="text-[10px] text-gray-400 font-medium">{item.date}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {currentView === 'nilai' && (
+                            <div className="flex-1 flex flex-col bg-gray-50">
+                                <SubHeader title="Nilai Santri" onBack={goBack} />
+                                <div className="flex-1 overflow-y-auto p-4">
+                                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                        {student.nilai && student.nilai.length > 0 ? (
+                                            student.nilai.map((item, index) => (
+                                                <div key={item.id || index} className={`flex justify-between items-center p-4 ${index !== student.nilai.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                                                    <span className="text-sm font-medium text-gray-700">{item.mapel}</span>
+                                                    <span className="text-sm font-bold text-sg-green w-10 text-center">{item.nilai}</span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="p-4 text-xs text-gray-500 text-center">Belum ada data nilai.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {currentView === 'absensi' && (
+                            <div className="flex-1 flex flex-col bg-gray-50">
+                                <SubHeader title="Absensi" onBack={goBack} />
+                                <div className="flex-1 overflow-y-auto p-4">
+                                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                        {student.absensi && student.absensi.length > 0 ? (
+                                            student.absensi.map((item, index) => (
+                                                <div key={item.id || index} className={`flex justify-between items-center p-3 ${index !== student.absensi.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                                                    <span className="text-sm text-gray-700">{item.tanggal}</span>
+                                                    <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${
+                                                        item.status === 'Hadir' ? 'bg-green-100 text-green-700' :
+                                                        item.status === 'Izin' ? 'bg-amber-100 text-amber-700' :
+                                                        item.status === 'Sakit' ? 'bg-sky-100 text-sky-700' : 'bg-red-100 text-red-700'
+                                                    }`}>{item.status}</span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="p-4 text-xs text-gray-500 text-center">Belum ada riwayat absensi.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {currentView === 'perizinan' && (
+                            <div className="flex-1 flex flex-col bg-gray-50">
+                                <SubHeader title="Perizinan Santri" onBack={goBack} />
+                                <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                        <h3 className="font-bold text-gray-800 mb-3">Form Ajukan Izin</h3>
+                                        <form onSubmit={handleSubmitIzin} className="space-y-3">
+                                            <div>
+                                                <label className="text-xs font-semibold text-gray-600 block mb-1">Tanggal Izin</label>
+                                                <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm" required />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-semibold text-gray-600 block mb-1">Jenis Izin</label>
+                                                <select value={jenis} onChange={(e) => setJenis(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm" required>
+                                                    <option value="">Pilih izin</option>
+                                                    <option value="Sakit">Sakit</option>
+                                                    <option value="Pulang">Pulang / Keluarga</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-semibold text-gray-600 block mb-1">Alasan</label>
+                                                <textarea rows="3" value={alasan} onChange={(e) => setAlasan(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm resize-none" required></textarea>
+                                            </div>
+                                            <button type="submit" className="w-full bg-sg-green text-white font-semibold py-2.5 rounded-xl">Kirim Pengajuan</button>
+                                        </form>
+                                    </div>
+
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                        <h3 className="font-bold text-gray-800 mb-3">Riwayat Pengajuan Izin</h3>
+                                        <div className="space-y-3">
+                                            {student.perizinan && student.perizinan.length > 0 ? (
+                                                student.perizinan.map((item, index) => (
+                                                    <div key={item.id || index} className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-1">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-xs font-bold text-sg-green">{item.jenis}</span>
+                                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                                                                item.status === 'Disetujui' ? 'bg-green-100 text-green-700' :
+                                                                item.status === 'Ditolak' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                                                            }`}>{item.status}</span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-700">{item.alasan}</p>
+                                                        <span className="text-[10px] text-gray-400 block">Tanggal: {item.tanggal}</span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-xs text-gray-500 text-center py-2">Belum ada riwayat perizinan.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {currentView === 'dokumentasi' && (
+                            <WaliDokumentasiView dokumentasi={dokumentasi} goBack={goBack} showToast={showToast} />
+                        )}
+                        {currentView === 'hubungi' && (
+                            <div className="flex-1 flex flex-col bg-gray-50">
+                                <SubHeader title="Hubungi Pondok & Sharelok" onBack={goBack} />
+                                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4 text-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 bg-green-50 text-sg-green rounded-full flex items-center justify-center flex-shrink-0">
+                                                <i className="fa-solid fa-phone"></i>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-xs text-gray-400">Telepon Pesantren</p>
+                                                <p className="font-semibold text-gray-800">{contact.telepon}</p>
+                                            </div>
+                                            <a href={`tel:${contact.telepon}`} className="bg-sg-green text-white text-xs px-3 py-1.5 rounded-lg font-bold">Telepon</a>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 border-t border-gray-100 pt-3">
+                                            <div className="w-9 h-9 bg-green-50 text-sg-green rounded-full flex items-center justify-center flex-shrink-0">
+                                                <i className="fa-brands fa-whatsapp text-lg"></i>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-xs text-gray-400">WhatsApp Resmi</p>
+                                                <p className="font-semibold text-gray-800">{contact.whatsapp}</p>
+                                            </div>
+                                            <a href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold">Chat WA</a>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 border-t border-gray-100 pt-3">
+                                            <div className="w-9 h-9 bg-green-50 text-sg-green rounded-full flex items-center justify-center flex-shrink-0">
+                                                <i className="fa-solid fa-map-marker-alt"></i>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-xs text-gray-400">Alamat & Titik Sharelok</p>
+                                                <p className="font-semibold text-gray-800 text-xs leading-relaxed">{contact.alamat}</p>
+                                            </div>
+                                            <a href={contact.mapsUrl} target="_blank" className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold flex items-center gap-1">
+                                                <i className="fa-solid fa-location-dot"></i> Maps
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="bg-white border-t border-gray-100 rounded-t-2xl px-6 py-2.5 flex justify-between items-center z-30">
+                            <button onClick={() => setCurrentView('beranda')} className={`flex flex-col items-center p-1.5 ${currentView === 'beranda' ? 'text-sg-green font-bold' : 'text-gray-400'}`}>
+                                <i className="fa-solid fa-home text-lg mb-0.5"></i><span className="text-[10px]">Beranda</span>
+                            </button>
+                            <button onClick={() => setCurrentView('profil')} className={`flex flex-col items-center p-1.5 ${currentView === 'profil' ? 'text-sg-green font-bold' : 'text-gray-400'}`}>
+                                <i className="fa-regular fa-user text-lg mb-0.5"></i><span className="text-[10px]">Akun</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [role, setRole] = useState('wali');
+            const [adminUser, setAdminUser] = useState(null);
+            const [activeStudentId, setActiveStudentId] = useState(initialStudentsList[0].id);
+            const [showApkModal, setShowApkModal] = useState(false);
+            const [showSecretModal, setShowSecretModal] = useState(false);
+            const [isOnline, setIsOnline] = useState(true);
+
+            const [activeTabOperator, setActiveTabOperator] = useState('admins');
+            const [studentsList, setStudentsList] = useState(initialStudentsList);
+            const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
+            const [pengumuman, setPengumuman] = useState(initialPengumuman);
+            const [dokumentasi, setDokumentasi] = useState(initialDokumentasi);
+            const [contactInfo, setContactInfo] = useState(initialContactInfo);
+            const [customLogo, setCustomLogo] = useState('');
+
+            const [toastMessage, setToastMessage] = useState(null);
+
+            const showToast = (msg) => {
+                setToastMessage(msg);
+                setTimeout(() => setToastMessage(null), 3000);
+            };
+
+            useEffect(() => {
+                try {
+                    const dbRef = window.FB.ref(window.FB.db, "siwasga_data");
+                    const unsubscribe = window.FB.onValue(dbRef, (snapshot) => {
+                        const data = snapshot.val();
+                        if (data) {
+                            if (data.studentsList) setStudentsList(data.studentsList);
+                            if (data.adminUsers) setAdminUsers(data.adminUsers);
+                            if (data.pengumuman) setPengumuman(data.pengumuman);
+                            if (data.dokumentasi) setDokumentasi(data.dokumentasi);
+                            if (data.contactInfo) setContactInfo(data.contactInfo);
+                            if (data.customLogo !== undefined) setCustomLogo(data.customLogo);
+                            setIsOnline(true);
+                        } else {
+                            window.FB.set(dbRef, {
+                                studentsList: initialStudentsList,
+                                adminUsers: initialAdminUsers,
+                                pengumuman: initialPengumuman,
+                                dokumentasi: initialDokumentasi,
+                                contactInfo: initialContactInfo,
+                                customLogo: ''
+                            });
+                        }
+                    }, (err) => {
+                        setIsOnline(false);
+                    });
+                    return () => unsubscribe();
+                } catch (e) {
+                    setIsOnline(false);
+                }
+            }, []);
+
+            const syncToDatabase = async (updatedFields) => {
+                try {
+                    const dbRef = window.FB.ref(window.FB.db, "siwasga_data");
+                    await window.FB.update(dbRef, updatedFields);
+                    setIsOnline(true);
+                } catch (err) {
+                    setIsOnline(false);
+                    showToast("Gagal menyinkronkan data ke server (Offline).");
+                }
+            };
+
+            const handleLogin = (selectedRole, userObj) => {
+                setRole(selectedRole);
+                if (selectedRole === 'wali') {
+                    setActiveStudentId(userObj.id);
+                } else {
+                    setAdminUser(userObj);
+                    if (userObj.role === 'superadmin') setActiveTabOperator('admins');
+                    else if (userObj.role === 'bendahara') setActiveTabOperator('pembayaran');
+                    else if (userObj.role === 'media') setActiveTabOperator('pengumuman');
+                    else if (userObj.role === 'sekretaris') setActiveTabOperator('santri');
+                    else setActiveTabOperator('santri');
+                }
+                setIsLoggedIn(true);
+                showToast(`Selamat datang, ${userObj.nama || userObj.username || 'Pengguna'}!`);
+            };
+
+            const handleLogout = () => {
+                setIsLoggedIn(false);
+                setAdminUser(null);
+                showToast("Anda telah keluar.");
+            };
+
+            const activeStudent = studentsList.find(s => s.id === activeStudentId) || studentsList[0];
+
+            return (
+                <React.Fragment>
+                    <div className={`fixed bottom-4 left-4 z-[9999] px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 shadow-lg ${isOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                        <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-white' : 'bg-white animate-pulse'}`}></span>
+                        {isOnline ? "TERHUBUNG (Real-time RTDB)" : "OFFLINE / GAGAL"}
+                    </div>
+
+                    {toastMessage && (
+                        <div className="fixed top-5 right-5 z-50 bg-slate-800 border border-slate-700 text-white text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce">
+                            <i className="fa-solid fa-circle-check text-sg-green text-base"></i>
+                            <span>{toastMessage}</span>
+                        </div>
+                    )}
+
+                    {showApkModal && <ApkDownloadModal onClose={() => setShowApkModal(false)} showToast={showToast} customLogo={customLogo} studentsList={studentsList} pengumuman={pengumuman} adminUsers={adminUsers} />}
+                    {showSecretModal && <SecretInfoModal onClose={() => setShowSecretModal(false)} />}
+
+                    {!isLoggedIn ? (
+                        <LoginScreen 
+                            onLogin={handleLogin} 
+                            onOpenApkModal={() => setShowApkModal(true)} 
+                            onOpenSecret={() => setShowSecretModal(true)} 
+                            customLogo={customLogo}
+                            adminUsers={adminUsers}
+                            studentsList={studentsList}
+                        />
+                    ) : role === 'operator' ? (
+                        <OperatorPanel 
+                            activeTabOperator={activeTabOperator}
+                            setActiveTabOperator={setActiveTabOperator}
+                            studentsList={studentsList}
+                            setStudentsList={setStudentsList}
+                            pengumuman={pengumuman}
+                            setPengumuman={setPengumuman}
+                            dokumentasi={dokumentasi}
+                            setDokumentasi={setDokumentasi}
+                            adminUsers={adminUsers}
+                            setAdminUsers={setAdminUsers}
+                            customLogo={customLogo}
+                            setCustomLogo={setCustomLogo}
+                            contactInfo={contactInfo}
+                            setContactInfo={setContactInfo}
+                            syncToDatabase={syncToDatabase}
+                            onLogout={handleLogout}
+                            showToast={showToast}
+                            adminUser={adminUser}
+                        />
+                    ) : (
+                        <WaliApp 
+                            student={activeStudent}
+                            studentsList={studentsList}
+                            setStudentsList={setStudentsList}
+                            pengumuman={pengumuman}
+                            dokumentasi={dokumentasi}
+                            customLogo={customLogo}
+                            contactInfo={contactInfo}
+                            syncToDatabase={syncToDatabase}
+                            showToast={showToast}
+                            onLogout={handleLogout}
+                            onOpenApkModal={() => setShowApkModal(true)}
+                        />
+                    )}
+                </React.Fragment>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
