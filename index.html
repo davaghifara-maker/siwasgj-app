@@ -70,28 +70,43 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getDatabase, ref, set, get, onValue, update } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBWmjv52jPYZ46Pl0ge4p4MhKy3vlXBxGU",
-            authDomain: "siwasgj.firebaseapp.com",
-            databaseURL: "https://siwasgj-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "siwasgj",
-            storageBucket: "siwasgj.firebasestorage.app",
-            messagingSenderId: "132925478112",
-            appId: "1:132925478112:web:af0329cb8dc69e03daec85",
-            measurementId: "G-812RM7EL7M"
+       // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBWmjv52jPYZ46Pl0ge4p4MhKy3vlXBxGU",
+  authDomain: "siwasga.firebaseapp.com",
+  databaseURL: "https://siwasga-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "siwasga",
+  storageBucket: "siwasga.firebasestorage.app",
+  messagingSenderId: "132925478112",
+  appId: "1:132925478112:web:af0329cb8dc69e03daec85",
+  measurementId: "G-812RM7EL7M"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
+        const auth = getAuth(app);
 
         window.FB = { 
-            db, ref, set, get, onValue, update 
+            db, ref, set, get, onValue, update, auth, signInWithEmailAndPassword, signOut, onAuthStateChanged
         };
+        window.FIREBASE_API_KEY = firebaseConfig.apiKey;
     </script>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
+
+        const createAuthUser = async (email, password) => {
+            const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${window.FIREBASE_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, returnSecureToken: false })
+            });
+            const data = await res.json();
+            if(data.error) throw new Error(data.error.message);
+            return data;
+        };
 
         const handleDownloadPhoto = async (photoUrl, photoName = "Dokumentasi_SIWASGJ.jpg") => {
             try {
@@ -268,7 +283,7 @@
                     </div>
                     <h3 className="font-bold text-base text-white mb-1">Informasi Pembuat Aplikasi</h3>
                     <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                        Aplikasi SIWASGJ ini dibuat dan dikembangkan oleh <strong className="text-emerald-400">Ardava Ghifara Putra</strong>, salah satu santri Pondok Pesantren Sunan Gunungjati Rogojampi Banyuwangi.
+                        Aplikasi SIWASGJ ini dibuat dan dikembangkan oleh <strong className="text-emerald-400">Ardava Ghifara Putra</strong>, salah satu santri Pondok Pesantren Sunan Gunungjati Rogojampi Banyuwangi. Sistem Keamanan V2 ditenagai Firebase.
                     </p>
                     <button onClick={onClose} className="w-full bg-sg-green hover:bg-sg-dark text-white text-xs font-semibold py-2.5 rounded-xl transition">
                         Tutup
@@ -331,12 +346,13 @@
             );
         };
 
-        const LoginScreen = ({ onLogin, onOpenApkModal, onOpenSecret, customLogo, adminUsers, studentsList }) => {
+        const LoginScreen = ({ onOpenApkModal, onOpenSecret, customLogo, adminUsers, studentsList }) => {
             const [roleTab, setRoleTab] = useState('wali');
             const [nisInput, setNisInput] = useState('');
             const [sandiInput, setSandiInput] = useState('');
             const [showPass, setShowPass] = useState(false);
             const [errorMsg, setErrorMsg] = useState('');
+            const [isLoggingIn, setIsLoggingIn] = useState(false);
 
             const handleLoginSubmit = async (e) => {
                 e.preventDefault();
@@ -346,21 +362,15 @@
                     setErrorMsg('Silakan masukkan Username/NIS dan Kata Sandi!');
                     return;
                 }
-
-                if (roleTab === 'operator') {
-                    const foundAdmin = (adminUsers || initialAdminUsers).find(a => a.username === nisInput && a.sandi === sandiInput);
-                    if (foundAdmin) {
-                        onLogin('operator', foundAdmin);
-                    } else {
-                        setErrorMsg('Username atau Sandi Pengurus salah!');
-                    }
-                } else {
-                    const found = (studentsList || initialStudentsList).find(s => s.nis === nisInput && (s.sandi === sandiInput || !s.sandi));
-                    if (found) {
-                        onLogin('wali', found);
-                    } else {
-                        setErrorMsg('NIS atau Kata Sandi Wali Santri tidak ditemukan.');
-                    }
+                
+                setIsLoggingIn(true);
+                const emailFormat = `${nisInput}@siwasgj.com`;
+                
+                try {
+                    await window.FB.signInWithEmailAndPassword(window.FB.auth, emailFormat, sandiInput);
+                } catch(err) {
+                    setIsLoggingIn(false);
+                    setErrorMsg('Username atau Kata Sandi salah / belum terdaftar di Server Keamanan!');
                 }
             };
 
@@ -451,9 +461,10 @@
 
                             <button 
                                 type="submit"
-                                className="w-full bg-sg-green hover:bg-sg-dark text-white font-bold py-3 rounded-xl transition shadow-lg mt-2 flex items-center justify-center gap-2">
-                                <i className="fa-solid fa-right-to-bracket"></i>
-                                <span>Masuk {roleTab === 'wali' ? 'Aplikasi Wali' : 'Panel Pengurus'}</span>
+                                disabled={isLoggingIn}
+                                className={`w-full text-white font-bold py-3 rounded-xl transition shadow-lg mt-2 flex items-center justify-center gap-2 ${isLoggingIn ? 'bg-slate-700' : 'bg-sg-green hover:bg-sg-dark'}`}>
+                                {isLoggingIn ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-right-to-bracket"></i>}
+                                <span>{isLoggingIn ? 'Memproses...' : (roleTab === 'wali' ? 'Masuk Aplikasi Wali' : 'Masuk Panel Pengurus')}</span>
                             </button>
                         </form>
 
@@ -790,24 +801,30 @@
             const [editRole, setEditRole] = useState('');
             const [editSandi, setEditSandi] = useState('');
 
-            const handleAddAdmin = (e) => {
+            const handleAddAdmin = async (e) => {
                 e.preventDefault();
                 if (!nama || !username || !sandi) {
                     showToast("Semua kolom harus diisi!");
                     return;
                 }
-                const newAdmin = {
-                    id: 'u_' + Date.now(),
-                    nama,
-                    username,
-                    role,
-                    sandi
-                };
-                const updated = [...adminUsers, newAdmin];
-                setAdminUsers(updated);
-                syncToDatabase({ adminUsers: updated });
-                showToast("Akun pengurus baru berhasil ditambahkan!");
-                setNama(''); setUsername(''); setSandi('');
+                showToast("Mendaftarkan pengurus ke server keamanan...");
+                try {
+                    await createAuthUser(`${username}@siwasgj.com`, sandi);
+                    const newAdmin = {
+                        id: 'u_' + Date.now(),
+                        nama,
+                        username,
+                        role,
+                        sandi
+                    };
+                    const updated = [...adminUsers, newAdmin];
+                    setAdminUsers(updated);
+                    syncToDatabase({ adminUsers: updated });
+                    showToast("Akun pengurus baru berhasil ditambahkan!");
+                    setNama(''); setUsername(''); setSandi('');
+                } catch(err) {
+                    showToast("Gagal! Username mungkin sudah terpakai.");
+                }
             };
 
             const handleUpdateAdmin = (id) => {
@@ -825,7 +842,7 @@
                 setAdminUsers(updated);
                 syncToDatabase({ adminUsers: updated });
                 setEditingId(null);
-                showToast("Data pengurus berhasil diperbarui!");
+                showToast("Data pengurus diperbarui! (Ubah juga di menu Auth Firebase Console jika mengganti sandi)");
             };
 
             const handleDeleteAdmin = (id) => {
@@ -853,7 +870,7 @@
                                 </div>
                                 <div>
                                     <label className="text-slate-400 text-xs mb-1 block font-semibold">Username Login</label>
-                                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Contoh: abdullah" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-sg-green" required />
+                                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} placeholder="Contoh: abdullah" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-sg-green" required />
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -867,7 +884,7 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-slate-400 text-xs mb-1 block font-semibold">Kata Sandi</label>
+                                    <label className="text-slate-400 text-xs mb-1 block font-semibold">Kata Sandi (Min 6 Karakter)</label>
                                     <input type="text" value={sandi} onChange={(e) => setSandi(e.target.value)} placeholder="Sandi..." className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white text-xs focus:outline-none focus:border-sg-green" required />
                                 </div>
                             </div>
@@ -1116,28 +1133,35 @@
             const [editNamaWali, setEditNamaWali] = useState('');
             const [editNoHpWali, setEditNoHpWali] = useState('');
 
-            const handleAddSantri = (e) => {
+            const handleAddSantri = async (e) => {
                 e.preventDefault();
                 if (!nama || !nis) return;
-                const defaultFoto = `https://placehold.co/150x150/0a5c36/ffffff?text=${nama.substring(0,2).toUpperCase()}`;
-                const newSantri = {
-                    id: 'santri_' + Date.now(),
-                    nama, nis, sandi, kelas, kamar,
-                    tempatLahir: 'Banyuwangi',
-                    tglLahir: '1 Januari 2011',
-                    namaWali: namaWali || 'Wali Santri',
-                    noHpWali: noHpWali || '08123456789',
-                    foto: foto.trim() ? foto.trim() : defaultFoto,
-                    nilai: [{ id: 'n1', mapel: "Al-Qur'an", nilai: 85 }],
-                    absensi: [{ id: 'a1', tanggal: '10 Juni 2026', status: 'Hadir' }],
-                    pembayaran: [{ id: 'b1', bulan: 'Juli 2026', status: 'Belum', nominal: 'Rp300.000' }],
-                    perizinan: []
-                };
-                const updated = [newSantri, ...studentsList];
-                setStudentsList(updated);
-                syncToDatabase({ studentsList: updated });
-                showToast(`Santri ${nama} berhasil ditambahkan!`);
-                setNama(''); setNis(''); setNamaWali(''); setNoHpWali(''); setFoto('');
+                
+                showToast("Mendaftarkan akun ke server keamanan...");
+                try {
+                    await createAuthUser(`${nis}@siwasgj.com`, sandi);
+                    const defaultFoto = `https://placehold.co/150x150/0a5c36/ffffff?text=${nama.substring(0,2).toUpperCase()}`;
+                    const newSantri = {
+                        id: 'santri_' + Date.now(),
+                        nama, nis, sandi, kelas, kamar,
+                        tempatLahir: 'Banyuwangi',
+                        tglLahir: '1 Januari 2011',
+                        namaWali: namaWali || 'Wali Santri',
+                        noHpWali: noHpWali || '08123456789',
+                        foto: foto.trim() ? foto.trim() : defaultFoto,
+                        nilai: [{ id: 'n1', mapel: "Al-Qur'an", nilai: 85 }],
+                        absensi: [{ id: 'a1', tanggal: '10 Juni 2026', status: 'Hadir' }],
+                        pembayaran: [{ id: 'b1', bulan: 'Juli 2026', status: 'Belum', nominal: 'Rp300.000' }],
+                        perizinan: []
+                    };
+                    const updated = [newSantri, ...studentsList];
+                    setStudentsList(updated);
+                    syncToDatabase({ studentsList: updated });
+                    showToast(`Santri ${nama} berhasil ditambahkan!`);
+                    setNama(''); setNis(''); setNamaWali(''); setNoHpWali(''); setFoto('');
+                } catch(err) {
+                    showToast("Gagal! NIS mungkin sudah terdaftar.");
+                }
             };
 
             const handleUpdateStudent = (id) => {
@@ -1180,7 +1204,7 @@
                 });
                 setStudentsList(updated);
                 syncToDatabase({ studentsList: updated });
-                showToast("Kata sandi berhasil direset menjadi '123456'");
+                showToast("Sandi database direset ke '123456' (Harap ubah juga di Firebase Console!)");
             };
 
             const handleUpdateFotoFile = (santriId, e) => {
@@ -1215,7 +1239,7 @@
                             </div>
                             <div>
                                 <label className="text-slate-400 text-xs mb-1 block">Nomor Induk Santri (NIS)</label>
-                                <input type="text" value={nis} onChange={(e) => setNis(e.target.value)} placeholder="Contoh: 123459" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green" required />
+                                <input type="text" value={nis} onChange={(e) => setNis(e.target.value.toLowerCase())} placeholder="Contoh: 123459" className="w-full bg-slate-700 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-sg-green" required />
                             </div>
                             <div>
                                 <label className="text-slate-400 text-xs mb-1 block">Kata Sandi (Password Login Wali)</label>
@@ -2464,35 +2488,66 @@
             };
 
             useEffect(() => {
-                try {
-                    const dbRef = window.FB.ref(window.FB.db, "siwasgj_data");
-                    const unsubscribe = window.FB.onValue(dbRef, (snapshot) => {
-                        const data = snapshot.val();
-                        if (data) {
-                            if (data.studentsList) setStudentsList(data.studentsList);
-                            if (data.adminUsers) setAdminUsers(data.adminUsers);
-                            if (data.pengumuman) setPengumuman(data.pengumuman);
-                            if (data.dokumentasi) setDokumentasi(data.dokumentasi);
-                            if (data.contactInfo) setContactInfo(data.contactInfo);
-                            if (data.customLogo !== undefined) setCustomLogo(data.customLogo);
-                            setIsOnline(true);
-                        } else {
-                            window.FB.set(dbRef, {
-                                studentsList: initialStudentsList,
-                                adminUsers: initialAdminUsers,
-                                pengumuman: initialPengumuman,
-                                dokumentasi: initialDokumentasi,
-                                contactInfo: initialContactInfo,
-                                customLogo: ''
-                            });
-                        }
-                    }, (err) => {
-                        setIsOnline(false);
-                    });
-                    return () => unsubscribe();
-                } catch (e) {
-                    setIsOnline(false);
-                }
+                const unsubAuth = window.FB.onAuthStateChanged(window.FB.auth, (user) => {
+                    if (user) {
+                        const dbRef = window.FB.ref(window.FB.db, "siwasgj_data");
+                        window.FB.onValue(dbRef, (snapshot) => {
+                            const data = snapshot.val();
+                            
+                            let currentAdminUsers = initialAdminUsers;
+                            let currentStudentsList = initialStudentsList;
+                            
+                            if (data) {
+                                if (data.studentsList) { setStudentsList(data.studentsList); currentStudentsList = data.studentsList; }
+                                if (data.adminUsers) { setAdminUsers(data.adminUsers); currentAdminUsers = data.adminUsers; }
+                                if (data.pengumuman) setPengumuman(data.pengumuman);
+                                if (data.dokumentasi) setDokumentasi(data.dokumentasi);
+                                if (data.contactInfo) setContactInfo(data.contactInfo);
+                                if (data.customLogo !== undefined) setCustomLogo(data.customLogo);
+                                setIsOnline(true);
+                            } else {
+                                window.FB.set(dbRef, {
+                                    studentsList: initialStudentsList,
+                                    adminUsers: initialAdminUsers,
+                                    pengumuman: initialPengumuman,
+                                    dokumentasi: initialDokumentasi,
+                                    contactInfo: initialContactInfo,
+                                    customLogo: ''
+                                });
+                            }
+
+                            // Cek login admin atau wali
+                            const prefix = user.email.split('@')[0];
+                            const foundAdmin = currentAdminUsers.find(a => a.username === prefix);
+                            
+                            if (foundAdmin) {
+                                setRole('operator'); 
+                                setAdminUser(foundAdmin); 
+                                setIsLoggedIn(true);
+                                
+                                if (foundAdmin.role === 'superadmin') setActiveTabOperator('admins');
+                                else if (foundAdmin.role === 'bendahara') setActiveTabOperator('pembayaran');
+                                else if (foundAdmin.role === 'media') setActiveTabOperator('logo');
+                                else if (foundAdmin.role === 'sekretaris') setActiveTabOperator('santri');
+                            } else {
+                                const foundStudent = currentStudentsList.find(s => s.nis === prefix);
+                                if (foundStudent) {
+                                    setRole('wali'); 
+                                    setActiveStudentId(foundStudent.id); 
+                                    setIsLoggedIn(true);
+                                }
+                            }
+                        }, (err) => {
+                            setIsOnline(false);
+                            showToast("Gagal mengambil data: " + err.message);
+                        });
+                    } else {
+                        setIsLoggedIn(false);
+                        setAdminUser(null);
+                    }
+                });
+                
+                return () => unsubAuth();
             }, []);
 
             const syncToDatabase = async (updatedFields) => {
@@ -2506,26 +2561,11 @@
                 }
             };
 
-            const handleLogin = (selectedRole, userObj) => {
-                setRole(selectedRole);
-                if (selectedRole === 'wali') {
-                    setActiveStudentId(userObj.id);
-                } else {
-                    setAdminUser(userObj);
-                    if (userObj.role === 'superadmin') setActiveTabOperator('admins');
-                    else if (userObj.role === 'bendahara') setActiveTabOperator('pembayaran');
-                    else if (userObj.role === 'media') setActiveTabOperator('pengumuman');
-                    else if (userObj.role === 'sekretaris') setActiveTabOperator('santri');
-                    else setActiveTabOperator('santri');
-                }
-                setIsLoggedIn(true);
-                showToast(`Selamat datang, ${userObj.nama || userObj.username || 'Pengguna'}!`);
-            };
-
             const handleLogout = () => {
+                window.FB.signOut(window.FB.auth);
                 setIsLoggedIn(false);
                 setAdminUser(null);
-                showToast("Anda telah keluar.");
+                showToast("Anda telah keluar dengan aman.");
             };
 
             const activeStudent = studentsList.find(s => s.id === activeStudentId) || studentsList[0];
@@ -2534,7 +2574,7 @@
                 <React.Fragment>
                     <div className={`fixed bottom-4 left-4 z-[9999] px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 shadow-lg ${isOnline ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                         <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-white' : 'bg-white animate-pulse'}`}></span>
-                        {isOnline ? "TERHUBUNG (Real-time RTDB)" : "OFFLINE / GAGAL"}
+                        {isOnline ? "TERHUBUNG (Firebase Auth V2)" : "OFFLINE / GAGAL"}
                     </div>
 
                     {toastMessage && (
@@ -2549,7 +2589,6 @@
 
                     {!isLoggedIn ? (
                         <LoginScreen 
-                            onLogin={handleLogin} 
                             onOpenApkModal={() => setShowApkModal(true)} 
                             onOpenSecret={() => setShowSecretModal(true)} 
                             customLogo={customLogo}
